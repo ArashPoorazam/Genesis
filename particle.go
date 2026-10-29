@@ -12,19 +12,19 @@ const (
 	Blue
 )
 
-type ParticleType struct {
-	Clr                  color.Color
-	Mass                 float64 // for simplicity the mass also represent the radius and the influence energy of a particle type
-	InnerInfluenceRadius float64
-	OuterInfluenceRadius float64
-}
-
 type Particle struct {
 	TypeID    int
 	X         float64
 	Y         float64
-	Velocity  float64
+	Speed     float64
 	Direction float64
+}
+
+type ParticleType struct {
+	Clr                  color.Color
+	Mass                 float64 // mass also represent the radius of the particle
+	InnerInfluenceRadius float64
+	OuterInfluenceRadius float64
 }
 
 type physics struct {
@@ -32,58 +32,54 @@ type physics struct {
 	Relations [][]float64
 }
 
+func createType(clr color.Color, mass float64) ParticleType {
+	return ParticleType{
+		clr,
+		mass,
+		mass + 3,
+		(mass * 5) + mass,
+	}
+}
+
 func prtSpawn(TypeID int) Particle {
+	Speed := 0
+	if prtMaxSpawnSpeed != 0 {
+		Speed = rand.IntN(prtMaxSpawnSpeed + 1)
+	}
 	return Particle{
 		TypeID,
 		float64(rand.IntN(screenWidth)),
 		float64(rand.IntN(screenHeight)),
-		float64(rand.IntN(prtMaxMomentum)),
+		float64(Speed),
 		float64(rand.IntN(360)) * math.Pi / 180,
 	}
 }
 
 func (p *Particle) move() {
-	p.X += math.Cos(p.Direction) * p.Velocity
-	p.Y += math.Sin(p.Direction) * p.Velocity
+	p.X += math.Cos(p.Direction) * p.Speed
+	p.Y += math.Sin(p.Direction) * p.Speed
 }
 
-func (p *Particle) boost(force float64) {
+func (p *Particle) acceleration(force float64) {
 	// it can be a negetive force or positive
-	p.Velocity += force
-}
-
-func (p *Particle) influence() {
+	p.Speed += force
 }
 
 // spawn initialization
-func Genesis(population int, radius float64) (physics, []Particle) {
+func Genesis(population int) (physics, []Particle) {
 	var physics physics
 
-	redParticle := ParticleType{
-		color.RGBA{255, 0, 0, 255},
-		2,
-		5,
-		radius * 3,
-	}
-	greenParticle := ParticleType{
-		color.RGBA{0, 255, 0, 255},
-		3,
-		6,
-		radius * 6,
-	}
-	blueParticle := ParticleType{
-		color.RGBA{0, 0, 255, 255},
-		4,
-		7,
-		radius * 9,
-	}
+	redParticle := createType(color.RGBA{255, 0, 0, 255}, 2)
+	greenParticle := createType(color.RGBA{0, 255, 0, 255}, 3)
+	blueParticle := createType(color.RGBA{0, 0, 255, 255}, 4)
+
 	physics.PT = append(physics.PT, redParticle, greenParticle, blueParticle)
 
 	physics.Relations = [][]float64{
-		// Red   Green  Blue
-		{0.0, 0.8, -0.5}, // Red responds to...
-		{-0.3, 0.0, 0.6}, // Green responds to...
-		{0.2, -0.7, 0.0}, // Blue responds to...
+		// Red  Green  Blue
+		{0, -1, -2}, // Red responds to...
+		{2, 1, -1},  // Green responds to...
+		{3, 0, -1},  // Blue responds to...
 	}
 
 	allPrts := []Particle{}
@@ -92,7 +88,7 @@ func Genesis(population int, radius float64) (physics, []Particle) {
 		for range population {
 			for {
 				prt := prtSpawn(i)
-				if !prtCollisionCheck(prt, allPrts, radius) {
+				if !spawnCollisionCheck(prt, allPrts, physics.PT[i].Mass) {
 					allPrts = append(allPrts, prt)
 					break
 				}
@@ -103,9 +99,9 @@ func Genesis(population int, radius float64) (physics, []Particle) {
 	return physics, allPrts
 }
 
-func prtCollisionCheck(prt Particle, prts []Particle, radius float64) bool {
-	for _, p := range prts {
-		if distance := EuclideanDistance(prt, p); distance < radius {
+func spawnCollisionCheck(prt Particle, prts []Particle, radius float64) bool {
+	for _, tp := range prts {
+		if distance := EuclideanDistance(prt, tp); distance < radius {
 			return true
 		}
 	}
