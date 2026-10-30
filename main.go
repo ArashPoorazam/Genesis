@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image/color"
 	"log"
 	"math"
 
@@ -12,12 +13,12 @@ import (
 const (
 	screenWidth       = 1900
 	screenHeight      = 1060
-	prtPop            = 300 // for each type of particle
+	prtPop            = 150 // for each type of particle
 	prtInitialGap     = 0
 	prtMaxSpawnSpeed  = 0
-	SpeedLimit        = 10000
+	SpeedLimit        = 5
 	damping           = 0.90
-	repulsionStrength = 2
+	repulsionStrength = 4
 )
 
 // structs
@@ -44,19 +45,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, p := range g.Prts {
 		particleType := g.Physics.PT[p.TypeID]
 		clr := particleType.Clr
-		// red, green, blue, _ := clr.RGBA()
+		red, green, blue, _ := clr.RGBA()
 
 		x, y := float32(p.X), float32(p.Y)
 		radius := float32(particleType.Mass)
 
-		// halo := color.NRGBA{
-		// 	R: uint8(red >> 8),
-		// 	G: uint8(green >> 8),
-		// 	B: uint8(blue >> 8),
-		// 	A: 20,
-		// }
+		halo := color.NRGBA{
+			R: uint8(red >> 8),
+			G: uint8(green >> 8),
+			B: uint8(blue >> 8),
+			A: 20,
+		}
 
-		// vector.FillCircle(screen, x, y, float32(g.Physics.PT[p.TypeID].OuterInfluenceRadius), halo, true)
+		vector.FillCircle(screen, x, y, float32(g.Physics.PT[p.TypeID].Mass+10), halo, true)
 		vector.FillCircle(screen, x, y, radius, clr, true)
 	}
 }
