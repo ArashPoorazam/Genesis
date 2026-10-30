@@ -1,7 +1,6 @@
 package main
 
 import (
-	"image/color"
 	"log"
 	"math"
 
@@ -11,13 +10,14 @@ import (
 
 // variables
 const (
-	screenWidth      = 1900
-	screenHeight     = 1060
-	prtPop           = 50 // for each type of particle
-	prtInitialGap    = 0
-	prtMaxSpawnSpeed = 0
-	SpeedLimit       = 3
-	turnRate         = 1
+	screenWidth       = 1900
+	screenHeight      = 1060
+	prtPop            = 300 // for each type of particle
+	prtInitialGap     = 0
+	prtMaxSpawnSpeed  = 0
+	SpeedLimit        = 10000
+	damping           = 0.90
+	repulsionStrength = 2
 )
 
 // structs
@@ -29,7 +29,7 @@ type Game struct {
 // loop logic
 func (g *Game) Update() error {
 	for i := range g.Prts {
-		g.prtInfluence(&g.Prts[i])
+		g.applyInfluence(&g.Prts[i])
 	}
 
 	for i := range g.Prts {
@@ -44,19 +44,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, p := range g.Prts {
 		particleType := g.Physics.PT[p.TypeID]
 		clr := particleType.Clr
-		red, green, blue, _ := clr.RGBA()
+		// red, green, blue, _ := clr.RGBA()
 
 		x, y := float32(p.X), float32(p.Y)
 		radius := float32(particleType.Mass)
 
-		halo := color.NRGBA{
-			R: uint8(red >> 8),
-			G: uint8(green >> 8),
-			B: uint8(blue >> 8),
-			A: 40,
-		}
+		// halo := color.NRGBA{
+		// 	R: uint8(red >> 8),
+		// 	G: uint8(green >> 8),
+		// 	B: uint8(blue >> 8),
+		// 	A: 20,
+		// }
 
-		vector.FillCircle(screen, x, y, float32(g.Physics.PT[p.TypeID].OuterInfluenceRadius), halo, true)
+		// vector.FillCircle(screen, x, y, float32(g.Physics.PT[p.TypeID].OuterInfluenceRadius), halo, true)
 		vector.FillCircle(screen, x, y, radius, clr, true)
 	}
 }
@@ -79,42 +79,64 @@ func main() {
 }
 
 // Update p's velocity based on nearby particles.
-func (g *Game) prtInfluence(p *Particle) {
+func (g *Game) applyInfluence(p *Particle) {
 	vx := p.Speed * math.Cos(p.Direction)
 	vy := p.Speed * math.Sin(p.Direction)
 
-	radius := g.Physics.PT[p.TypeID].OuterInfluenceRadius
-
 	for _, other := range g.Prts {
-		dx := other.X - p.X
-		dy := other.Y - p.Y
+		inner := g.Physics.PT[other.TypeID].InnerInfluenceRadius
+		outer := g.Physics.PT[other.TypeID].OuterInfluenceRadius
+
+		dx := wrappedDelta(other.X-p.X, screenWidth)
+		dy := wrappedDelta(other.Y-p.Y, screenHeight)
 		distance := math.Hypot(dx, dy)
 
-		if distance == 0 || distance > radius {
+		if distance == 0 || distance > outer {
 			continue
 		}
 
-		force := g.Physics.Relations[p.TypeID][other.TypeID]
+		relation := g.Physics.Relations[p.TypeID][other.TypeID]
 
-		vx += (dx / distance) * force * turnRate
-		vy += (dy / distance) * force * turnRate
+		force := forceCalculation(distance, inner, outer, relation)
+
+		vx += (dx / distance) * force
+		vy += (dy / distance) * force
 	}
+
+	vx *= damping
+	vy *= damping
 
 	p.Speed = min(math.Hypot(vx, vy), SpeedLimit)
 	p.Direction = math.Atan2(vy, vx)
 }
 
-func borderCollisionAdjustment(prt *Particle) {
-	if prt.X < 0 {
-		prt.X = screenWidth
+func forceCalculation(distance, inner, outer, relation float64) float64 {
+	if distance >= outer {
+		return 0
 	}
-	if prt.X > screenWidth {
-		prt.X = 0
+	if distance < inner {
+		return -repulsionStrength * (1 - distance/inner)
 	}
-	if prt.Y < 0 {
-		prt.Y = screenHeight
+
+	t := (distance - inner) / (outer - inner)
+	weight := 1 - math.Abs(2*t-1)
+
+	return relation * weight
+}
+
+func wrappedDelta(delta, size float64) float64 {
+	return delta - size*math.Round(delta/size)
+}
+
+func wrapPosition(value, size float64) float64 {
+	value = math.Mod(value, size)
+	if value < 0 {
+		value += size
 	}
-	if prt.Y > screenHeight {
-		prt.Y = 0
-	}
+	return value
+}
+
+func borderCollisionAdjustment(p *Particle) {
+	p.X = wrapPosition(p.X, screenWidth)
+	p.Y = wrapPosition(p.Y, screenHeight)
 }

@@ -1,15 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 	"math/rand/v2"
-)
-
-const (
-	Red int = iota
-	Green
-	Blue
 )
 
 type Particle struct {
@@ -21,6 +16,7 @@ type Particle struct {
 }
 
 type ParticleType struct {
+	Name                 string
 	Clr                  color.Color
 	Mass                 float64 // mass also represent the radius of the particle
 	InnerInfluenceRadius float64
@@ -32,12 +28,13 @@ type physics struct {
 	Relations [][]float64
 }
 
-func createType(clr color.Color, mass float64) ParticleType {
+func createType(name string, clr color.Color, mass, outer, inner float64) ParticleType {
 	return ParticleType{
+		name,
 		clr,
 		mass,
-		mass + 3,
-		(mass * 5) + mass,
+		inner,
+		outer,
 	}
 }
 
@@ -60,32 +57,69 @@ func (p *Particle) move() {
 	p.Y += math.Sin(p.Direction) * p.Speed
 }
 
-func (p *Particle) acceleration(force float64) {
-	// it can be a negetive force or positive
-	p.Speed += force
-}
-
 // spawn initialization
-func Genesis(population int) (physics, []Particle) {
+func Genesis(maxPopulation int) (physics, []Particle) {
 	var physics physics
 
-	redParticle := createType(color.RGBA{255, 0, 0, 255}, 2)
-	greenParticle := createType(color.RGBA{0, 255, 0, 255}, 3)
-	blueParticle := createType(color.RGBA{0, 0, 255, 255}, 4)
+	redParticle := createType(
+		"Red",
+		color.RGBA{255, 0, 0, 255},
+		2,
+		80,
+		10,
+	)
+	greenParticle := createType(
+		"Green",
+		color.RGBA{0, 255, 0, 255},
+		3,
+		60,
+		20,
+	)
+	blueParticle := createType(
+		"Blue",
+		color.RGBA{0, 0, 255, 255},
+		4,
+		100,
+		10,
+	)
+	pinkParticle := createType(
+		"Pink",
+		color.RGBA{255, 105, 180, 255},
+		2,
+		30,
+		10,
+	)
+	orangeParticle := createType(
+		"Orange",
+		color.RGBA{255, 213, 128, 255},
+		3,
+		120,
+		40,
+	)
 
-	physics.PT = append(physics.PT, redParticle, greenParticle, blueParticle)
+	physics.PT = append(physics.PT, redParticle, greenParticle, blueParticle, pinkParticle, orangeParticle)
+
+	var RN []float64
+	for range len(physics.PT) * len(physics.PT) {
+		n := rand.Float64()*2 - 1
+		RN = append(RN, n)
+	}
+	fmt.Println(RN)
 
 	physics.Relations = [][]float64{
-		// Red  Green  Blue
-		{0, -1, -2}, // Red responds to...
-		{2, 1, -1},  // Green responds to...
-		{3, 0, -1},  // Blue responds to...
+		//        Red    Green  Blue   pink   orange
+		{RN[0], RN[1], RN[2], RN[3], RN[4]},      // Red follows green; avoids blue.
+		{RN[5], RN[6], RN[7], RN[8], RN[9]},      // Green follows blue; avoids red.
+		{RN[10], RN[11], RN[12], RN[13], RN[14]}, // Blue follows red; avoids gree
+		{RN[15], RN[16], RN[17], RN[18], RN[19]}, // pink follows red; avoids green.
+		{RN[20], RN[21], RN[22], RN[23], RN[24]}, // orange follows red; avoids green.
 	}
-
 	allPrts := []Particle{}
 
 	for i := range physics.PT {
-		for range population {
+		pop := rand.IntN(maxPopulation)
+		fmt.Printf("Create %d of %s\n", pop, physics.PT[i].Name)
+		for range pop {
 			for {
 				prt := prtSpawn(i)
 				if !spawnCollisionCheck(prt, allPrts, physics.PT[i].Mass) {
@@ -99,9 +133,9 @@ func Genesis(population int) (physics, []Particle) {
 	return physics, allPrts
 }
 
-func spawnCollisionCheck(prt Particle, prts []Particle, radius float64) bool {
+func spawnCollisionCheck(p Particle, prts []Particle, radius float64) bool {
 	for _, tp := range prts {
-		if distance := EuclideanDistance(prt, tp); distance < radius {
+		if distance := EuclideanDistance(p, tp); distance < radius {
 			return true
 		}
 	}
