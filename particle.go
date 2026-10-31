@@ -10,11 +10,11 @@ import (
 )
 
 type Particle struct {
-	TypeID    int
-	X         float64
-	Y         float64
-	Speed     float64
-	Direction float64
+	TypeID int
+	X      float64
+	Y      float64
+	VX     float64
+	VY     float64
 }
 
 type ParticleType struct {
@@ -31,6 +31,9 @@ type physics struct {
 }
 
 func createType(name string, clr color.Color, mass, outer, inner float64) (ParticleType, error) {
+	if mass >= inner || mass >= outer {
+		return ParticleType{}, errors.New("mass can't be bigger than the inner or outer influence radius")
+	}
 	if inner >= outer {
 		return ParticleType{}, errors.New("the inner zone cannot be bigger than the outer zone")
 	}
@@ -48,22 +51,34 @@ func prtSpawn(TypeID int) Particle {
 	if prtMaxSpawnSpeed != 0 {
 		Speed = rand.IntN(prtMaxSpawnSpeed + 1)
 	}
+	direction := float64(rand.IntN(360)) * math.Pi / 180
 	return Particle{
 		TypeID,
 		float64(rand.IntN(screenWidth)),
 		float64(rand.IntN(screenHeight)),
-		float64(Speed),
-		float64(rand.IntN(360)) * math.Pi / 180,
+		float64(Speed) * math.Cos(direction),
+		float64(Speed) * math.Sin(direction),
 	}
 }
 
 func (p *Particle) move() {
-	p.X += math.Cos(p.Direction) * p.Speed
-	p.Y += math.Sin(p.Direction) * p.Speed
+	p.X += p.VX
+	p.Y += p.VY
+}
+
+func (p physics) maxRadius() float64 {
+	radius := float64(maxOuterRadius)
+	for _, particleType := range p.PT {
+		radius = max(radius, particleType.OuterInfluenceRadius)
+	}
+	return radius
 }
 
 // spawn initialization
 func Genesis(maxPopulation int) (physics, []Particle) {
+	if minOuterRadius <= 10 || maxOuterRadius < minOuterRadius {
+		log.Fatal("outer radius bounds must satisfy 10 < minOuterRadius <= maxOuterRadius to accommodate the inner radius")
+	}
 	var physics physics
 	var RN []float64 // Random Relation numbers
 	var outers []float64
@@ -73,8 +88,8 @@ func Genesis(maxPopulation int) (physics, []Particle) {
 		var o float64
 		var i float64
 		for {
-			o = rand.Float64()*12 + 20
-			i = rand.Float64()*12 + 10
+			o = minOuterRadius + rand.Float64()*(maxOuterRadius-minOuterRadius)
+			i = minInnerRadius + rand.Float64()*(maxInnerRadius-minInnerRadius)
 			if o > i {
 				break
 			}
@@ -140,31 +155,40 @@ func Genesis(maxPopulation int) (physics, []Particle) {
 	physics.PT = append(physics.PT, redParticle, greenParticle, blueParticle, pinkParticle, orangeParticle)
 
 	for range len(physics.PT) * len(physics.PT) {
-		n := rand.Float64()*2 - 1
+		n := rand.Float64()*(maxRelationStrength*2) - maxRelationStrength
 		RN = append(RN, n)
 	}
 
 	physics.Relations = [][]float64{
 		//        Red    Green  Blue   pink   orange
-		{RN[0], RN[1], RN[2], RN[3], RN[4]},      // Red follows green; avoids blue.
-		{RN[5], RN[6], RN[7], RN[8], RN[9]},      // Green follows blue; avoids red.
-		{RN[10], RN[11], RN[12], RN[13], RN[14]}, // Blue follows red; avoids gree
-		{RN[15], RN[16], RN[17], RN[18], RN[19]}, // pink follows red; avoids green.
-		{RN[20], RN[21], RN[22], RN[23], RN[24]}, // orange follows red; avoids green.
+		{RN[0], RN[1], RN[2], RN[3], RN[4]},      // Red responds to...
+		{RN[5], RN[6], RN[7], RN[8], RN[9]},      // Green responds to...
+		{RN[10], RN[11], RN[12], RN[13], RN[14]}, // Blue responds to...
+		{RN[15], RN[16], RN[17], RN[18], RN[19]}, // pink responds to...
+		{RN[20], RN[21], RN[22], RN[23], RN[24]}, // orange responds to...
 	}
+
+	printMatrix(physics.Relations)
+
 	allPrts := []Particle{}
+	spawnGrid := newSpatialGrid(physics.maxRadius())
 
 	for i := range physics.PT {
 		pop := rand.IntN(maxPopulation)
 		fmt.Printf(
-			"%d Created %d of %s with (o: %v, i: %v)\n",
+			"%d Created %d of %s with (o: %.2f, i: %0.2f)\n",
 			i, pop, physics.PT[i].Name, physics.PT[i].OuterInfluenceRadius, physics.PT[i].InnerInfluenceRadius,
 		)
 		for range pop {
-			for {
+			for attempt := 0; ; attempt++ {
+				if attempt == 1000 {
+					log.Printf("Stopped spawning after 1000 unsuccessful attempts; created %d particles", len(allPrts))
+					return physics, allPrts
+				}
 				prt := prtSpawn(i)
-				if !spawnCollisionCheck(prt, allPrts, physics.PT[i].Mass) {
+				if !spawnCollisionCheck(prt, allPrts, physics.PT[i].Mass, spawnGrid) {
 					allPrts = append(allPrts, prt)
+					spawnGrid.insert(prt)
 					break
 				}
 			}
@@ -174,10 +198,15 @@ func Genesis(maxPopulation int) (physics, []Particle) {
 	return physics, allPrts
 }
 
-func spawnCollisionCheck(p Particle, prts []Particle, radius float64) bool {
-	for _, tp := range prts {
-		if distance := EuclideanDistance(p, tp); distance < radius {
-			return true
+func spawnCollisionCheck(p Particle, prts []Particle, radius float64, grid *spatialGrid) bool {
+	cell := grid.cell(p.X, p.Y)
+	for _, neighbor := range grid.neighbors[cell][:grid.neighborCount] {
+		for otherIndex := grid.heads[neighbor]; otherIndex != -1; otherIndex = grid.next[otherIndex] {
+			other := prts[otherIndex]
+			dx, dy := p.X-other.X, p.Y-other.Y
+			if dx*dx+dy*dy < radius*radius {
+				return true
+			}
 		}
 	}
 	return false
@@ -188,4 +217,19 @@ func EuclideanDistance(A, B Particle) float64 {
 	dy := A.Y - B.Y
 
 	return math.Sqrt(float64(dx*dx + dy*dy))
+}
+
+func printMatrix(matrix [][]float64) {
+	fmt.Println("{")
+	for _, row := range matrix {
+		fmt.Print("   { ")
+		for column, value := range row {
+			if column > 0 {
+				fmt.Print(", ")
+			}
+			fmt.Printf("%.2f", value)
+		}
+		fmt.Println(" }")
+	}
+	fmt.Println("}")
 }
