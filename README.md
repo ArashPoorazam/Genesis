@@ -1,10 +1,56 @@
 # Genesis
 
-This is a simulation that I use to Exercise and understand the "Emergence" concept
+The name is just another word for beginning of something big like the big bang.
+This is a simulation that I use to Exercise and understand the "Emergence" concept, emergence is about how small entity like a particle with a gene(rules) would create complex structure and systems like life.
 
-Run with `go run .` or build with `go build .`.
+For now it uses 5 hard coded particle types with their own colors and the computer chooses randomly interactions(Relations) between each particle and the range of their influence.
 
-At startup, `main` reads the current monitor size into the global `screenWidth` and `screenHeight` variables before creating particles and the grid. The window, logical layout, spawning, grid, and physics wrapping all use these dimensions, in device-independent pixels.
+From what I have seen each reset feels like a whole new world with new physics rules, it is so fascinating to watch.
+
+## Install
+
+For now just clone the repo and run with `go run .` or build with `go build .`
+Every time you start, a set of unique rules will be created for each particle and it gets printed on terminal so every new start feels like a new world.
+
+## Fun set of particle types
+
+```
+ redParticle = createType(
+  "Red",
+  color.RGBA{255, 0, 0, 255},
+  2,
+  80,
+  10,
+ )
+ greenParticle = createType(
+  "Green",
+  color.RGBA{0, 255, 0, 255},
+  2,
+  60,
+  20,
+ )
+ blueParticle= createType(
+  "Blue",
+  color.RGBA{0, 0, 255, 255},
+  2,
+  100,
+  10,
+ )
+ pinkParticle = createType(
+  "Pink",
+  color.RGBA{255, 105, 180, 255},
+  2,
+  30,
+  10,
+ )
+ orangeParticle = createType(
+  "Orange",
+  color.RGBA{255, 213, 128, 255},
+  2,
+  120,
+  40,
+ )
+```
 
 ## Particle performance
 
