@@ -1,68 +1,27 @@
 package main
 
 import (
+	"flag"
 	"log"
+	"math/rand/v2"
 
-	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/ArashPoorazam/Genesis/internal/desktop"
 )
-
-var screenWidth, screenHeight int
-
-// variables
-const (
-	prtPop              = 500 // for each type of particle
-	prtInitialGap       = 0
-	prtMaxSpawnSpeed    = 0
-	minOuterRadius      = 50.0
-	maxOuterRadius      = 120.0
-	minInnerRadius      = 15.0
-	maxInnerRadius      = 10.0
-	SpeedLimit          = 5
-	damping             = 0.90
-	repulsionStrength   = 8
-	maxRelationStrength = 2
-)
-
-type Game struct {
-	Physics      physics
-	Prts         []Particle
-	grid         *spatialGrid
-	outerSquared []float64
-	sprites      []particleSprite
-}
-
-func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return screenWidth, screenHeight
-}
 
 func main() {
-	monitor := ebiten.Monitor()
-	if monitor == nil {
-		log.Fatal("No monitor available")
-	}
+	options := desktop.Options{}
+	flag.IntVar(&options.Width, "width", 1440, "initial window width")
+	flag.IntVar(&options.Height, "height", 900, "initial window height")
+	flag.Uint64Var(&options.Seed, "seed", rand.Uint64(), "initial experiment seed")
+	flag.IntVar(&options.TypeCount, "types", 5, "initial particle types (1–12)")
+	flag.Float64Var(&options.UIScale, "ui-scale", 1, "UI scale, 1–1.5")
+	flag.IntVar(&options.InitialTab, "tab", 0, "inspector: 0 relationships, 1 particles, 2 settings")
+	flag.BoolVar(&options.ExpandMatrix, "expanded", false, "expand relationship matrix")
+	flag.StringVar(&options.ScreenshotPath, "screenshot", "", "save a PNG and exit after rendering")
+	flag.IntVar(&options.CaptureFrames, "capture-frames", 90, "frames before screenshot and exit")
+	flag.Parse()
 
-	screenWidth, screenHeight = monitor.Size()
-	if screenWidth <= 0 || screenHeight <= 0 {
-		log.Fatal("Monitor dimensions must be positive")
-	}
-	ebiten.SetWindowSize(screenWidth, screenHeight)
-	ebiten.SetWindowTitle("Genova")
-
-	physics, prts := Genesis(prtPop)
-	game := &Game{
-		Physics:      physics,
-		Prts:         prts,
-		grid:         newSpatialGrid(physics.maxRadius()),
-		outerSquared: make([]float64, len(physics.PT)),
-		sprites:      make([]particleSprite, len(physics.PT)),
-	}
-	for typeID, particleType := range physics.PT {
-		game.outerSquared[typeID] = particleType.OuterInfluenceRadius * particleType.OuterInfluenceRadius
-		game.sprites[typeID] = makeParticleSprite(particleType)
-	}
-	game.grid.rebuild(game.Prts)
-
-	if err := ebiten.RunGame(game); err != nil {
+	if err := desktop.Run(options); err != nil {
 		log.Fatal(err)
 	}
 }
