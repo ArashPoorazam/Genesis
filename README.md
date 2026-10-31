@@ -14,6 +14,8 @@ Every time you start, a set of unique rules will be created for each particle an
 
 ## Fun set of particle types
 
+You can replace this by hand if you know the code and add the error checks then you will be good to go
+
 ```
  redParticle = createType(
   "Red",
