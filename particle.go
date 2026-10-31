@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
+	"log"
 	"math"
 	"math/rand/v2"
 )
@@ -28,14 +30,17 @@ type physics struct {
 	Relations [][]float64
 }
 
-func createType(name string, clr color.Color, mass, outer, inner float64) ParticleType {
+func createType(name string, clr color.Color, mass, outer, inner float64) (ParticleType, error) {
+	if inner >= outer {
+		return ParticleType{}, errors.New("the inner zone cannot be bigger than the outer zone")
+	}
 	return ParticleType{
 		name,
 		clr,
 		mass,
 		inner,
 		outer,
-	}
+	}, nil
 }
 
 func prtSpawn(TypeID int) Particle {
@@ -60,51 +65,84 @@ func (p *Particle) move() {
 // spawn initialization
 func Genesis(maxPopulation int) (physics, []Particle) {
 	var physics physics
+	var RN []float64 // Random Relation numbers
+	var outers []float64
+	var inners []float64
 
-	redParticle := createType(
+	for range 5 {
+		var o float64
+		var i float64
+		for {
+			o = rand.Float64()*12 + 20
+			i = rand.Float64()*12 + 10
+			if o > i {
+				break
+			}
+		}
+		outers = append(outers, o)
+		inners = append(inners, i)
+	}
+
+	redParticle, err := createType(
 		"Red",
 		color.RGBA{255, 0, 0, 255},
 		2,
-		80,
-		10,
+		outers[0],
+		inners[0],
 	)
-	greenParticle := createType(
+	if err != nil {
+		log.Fatal(err)
+	}
+	greenParticle, err := createType(
 		"Green",
 		color.RGBA{0, 255, 0, 255},
-		3,
-		60,
-		20,
+		2,
+		outers[1],
+		inners[1],
 	)
-	blueParticle := createType(
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	blueParticle, err := createType(
 		"Blue",
 		color.RGBA{0, 0, 255, 255},
-		4,
-		100,
-		10,
+		2,
+		outers[2],
+		inners[2],
 	)
-	pinkParticle := createType(
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pinkParticle, err := createType(
 		"Pink",
 		color.RGBA{255, 105, 180, 255},
 		2,
-		30,
-		10,
+		outers[3],
+		inners[3],
 	)
-	orangeParticle := createType(
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	orangeParticle, err := createType(
 		"Orange",
 		color.RGBA{255, 213, 128, 255},
-		3,
-		120,
-		40,
+		2,
+		outers[4],
+		inners[4],
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	physics.PT = append(physics.PT, redParticle, greenParticle, blueParticle, pinkParticle, orangeParticle)
 
-	var RN []float64
 	for range len(physics.PT) * len(physics.PT) {
 		n := rand.Float64()*2 - 1
 		RN = append(RN, n)
 	}
-	fmt.Println(RN)
 
 	physics.Relations = [][]float64{
 		//        Red    Green  Blue   pink   orange
@@ -118,7 +156,10 @@ func Genesis(maxPopulation int) (physics, []Particle) {
 
 	for i := range physics.PT {
 		pop := rand.IntN(maxPopulation)
-		fmt.Printf("Create %d of %s\n", pop, physics.PT[i].Name)
+		fmt.Printf(
+			"%d Created %d of %s with (o: %v, i: %v)\n",
+			i, pop, physics.PT[i].Name, physics.PT[i].OuterInfluenceRadius, physics.PT[i].InnerInfluenceRadius,
+		)
 		for range pop {
 			for {
 				prt := prtSpawn(i)

@@ -13,7 +13,7 @@ import (
 const (
 	screenWidth       = 1900
 	screenHeight      = 1060
-	prtPop            = 150 // for each type of particle
+	prtPop            = 250 // for each type of particle
 	prtInitialGap     = 0
 	prtMaxSpawnSpeed  = 0
 	SpeedLimit        = 5
