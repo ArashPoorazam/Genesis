@@ -1,6 +1,10 @@
 # Genesis
 
+This project is inspired by particle life.
+
 Genesis is a desktop particle laboratory for exploring emergence: how small entities following simple rules can form complex structures. Change the rules while the world runs, inspect how each particle type responds to others, and save experiments worth revisiting.
+
+![Genesis Logo](images/logo.png)
 
 ## Run
 
@@ -38,24 +42,24 @@ The world uses wrapped boundaries. Window size, UI scale, and inspector visibili
 
 ### Keyboard
 
-| Key | Action |
-| --- | --- |
-| Space | Play / pause |
-| `.` | One physics step while paused |
-| `1` / `2` / `3` | Toggle rules / particles / settings drawer |
-| `I` | Toggle the current inspector |
-| `R` | Restart particles from the current seed |
-| Ctrl+S / Ctrl+Shift+S | Save / save as |
-| Ctrl+O | Open preset library |
-| Ctrl+Z / Ctrl+Shift+Z | Undo / redo configuration edits |
-| Tab / Shift+Tab | Move focus between controls |
-| Enter | Activate the focused button or commit a field |
-| Arrow keys | Navigate the selected matrix cell or adjust a focused slider |
-| Right-click a matrix cell / `L` while matrix focused | Toggle that cell’s lock |
-| Shift+wheel over matrix | Scroll matrix columns |
-| F11 | Toggle fullscreen |
-| Escape | Leave a focused field or control, then close the drawer; close a dialog |
-| `?` / F1 | Open the keyboard guide |
+| Key                                                  | Action                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| Space                                                | Play / pause                                                            |
+| `.`                                                  | One physics step while paused                                           |
+| `1` / `2` / `3`                                      | Toggle rules / particles / settings drawer                              |
+| `I`                                                  | Toggle the current inspector                                            |
+| `R`                                                  | Restart particles from the current seed                                 |
+| Ctrl+S / Ctrl+Shift+S                                | Save / save as                                                          |
+| Ctrl+O                                               | Open preset library                                                     |
+| Ctrl+Z / Ctrl+Shift+Z                                | Undo / redo configuration edits                                         |
+| Tab / Shift+Tab                                      | Move focus between controls                                             |
+| Enter                                                | Activate the focused button or commit a field                           |
+| Arrow keys                                           | Navigate the selected matrix cell or adjust a focused slider            |
+| Right-click a matrix cell / `L` while matrix focused | Toggle that cell’s lock                                                 |
+| Shift+wheel over matrix                              | Scroll matrix columns                                                   |
+| F11                                                  | Toggle fullscreen                                                       |
+| Escape                                               | Leave a focused field or control, then close the drawer; close a dialog |
+| `?` / F1                                             | Open the keyboard guide                                                 |
 
 Global shortcuts are suppressed while typing, except Escape to leave the field. On macOS, Command also works for Ctrl shortcuts. Opening Rules with `1` enables matrix arrow navigation; Enter focuses the selected rule's number. A slider drag is one undo entry. Undo changes configuration; it does not rewind simulation time. Dialogs pause simulation updates until dismissed.
 
