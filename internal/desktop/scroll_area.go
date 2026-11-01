@@ -6,7 +6,10 @@ import (
 )
 
 func (view *Window) addScrollArea(parent *widget.Container, x, y, width, height, contentHeight int) *widget.Container {
-	content := newContainer(width-18, contentHeight)
+	// Ebiten UI offsets by (content - viewport). A negative extent moves short
+	// content downward, so fill the viewport and never retain a short-area offset.
+	overflow := max(0, contentHeight-height)
+	content := newContainer(width-18, max(contentHeight, height))
 	scroll := widget.NewScrollContainer(
 		widget.ScrollContainerOpts.Content(content),
 		widget.ScrollContainerOpts.StretchContentWidth(),
@@ -17,6 +20,10 @@ func (view *Window) addScrollArea(parent *widget.Container, x, y, width, height,
 	)
 	placeWidget(parent, scroll, rectangle(x, y, width-14, height))
 	view.scrollContainers = append(view.scrollContainers, scroll)
+	if overflow > 0 {
+		scroll.ScrollTop = max(0, min(1, view.scrollPositions[view.scrollKey]))
+	}
+	lastScrollbar := 0
 
 	scrollbar := widget.NewSlider(
 		widget.SliderOpts.Orientation(widget.DirectionVertical),
@@ -35,17 +42,26 @@ func (view *Window) addScrollArea(parent *widget.Container, x, y, width, height,
 			},
 		),
 		widget.SliderOpts.ChangedHandler(func(change *widget.SliderChangedEventArgs) {
+			if overflow == 0 || change.Current == lastScrollbar {
+				return
+			}
 			scroll.ScrollTop = float64(change.Current) / 1000
 		}),
 	)
 	placeWidget(parent, scrollbar, rectangle(x+width-9, y, 6, height))
 	scrollbar.GetWidget().Disabled = contentHeight <= height
+	if contentHeight <= height {
+		scrollbar.GetWidget().SetVisibility(widget.Visibility_Hide)
+	}
 
 	scroll.GetWidget().ScrolledEvent.AddHandler(func(arguments interface{}) {
+		if overflow == 0 {
+			scroll.ScrollTop = 0
+			return
+		}
 		wheel := arguments.(*widget.WidgetScrolledEventArgs)
-		distance := wheel.Y * 48 / float64(max(1, contentHeight-height))
+		distance := wheel.Y * 48 / float64(overflow)
 		scroll.ScrollTop = max(0, min(1, scroll.ScrollTop-distance))
-		scrollbar.Current = int(scroll.ScrollTop * 1000)
 	})
 
 	content.GetWidget().FocusEvent.AddHandler(func(arguments interface{}) {
@@ -64,7 +80,13 @@ func (view *Window) addScrollArea(parent *widget.Container, x, y, width, height,
 		}
 
 		scroll.ScrollTop = max(0, min(1, scroll.ScrollTop+float64(offset)/float64(contentHeight-height)))
-		scrollbar.Current = int(scroll.ScrollTop * 1000)
+	})
+	view.refreshBindings = append(view.refreshBindings, func() {
+		if overflow == 0 {
+			scroll.ScrollTop = 0
+		}
+		lastScrollbar = int(scroll.ScrollTop * 1000)
+		scrollbar.Current = lastScrollbar
 	})
 
 	return content

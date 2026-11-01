@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
-	uiimage "github.com/ebitenui/ebitenui/image"
 	"github.com/ebitenui/ebitenui/widget"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -17,7 +16,7 @@ import (
 func (view *Window) buildParticles(x, y, width, height int) {
 	config := view.controller.Simulation.Config
 	listHeight := ((len(config.ParticleTypes) + 1) / 2) * 42
-	content := view.addScrollArea(view.rootContainer, x, y, width, height, listHeight+980)
+	content := view.addScrollArea(view.inspectorContainer, x, y, width, height, listHeight+980)
 	width -= 24
 
 	view.addLabel(content, 0, 0, width, "Particle types", 23, ink)
@@ -43,11 +42,24 @@ func (view *Window) buildTypeList(content *widget.Container, width, listHeight i
 			view.requestRebuild()
 		})
 		images := buttonImages(view.selectedType == typeIndex)
-		images.Idle = uiimage.NewBorderedNineSliceColor(surface, particleType.Color, 1)
+		images.Idle = roundedImage(surface, mix(surface, particleType.Color, .55), 8)
 		if view.selectedType == typeIndex {
-			images.Idle = uiimage.NewBorderedNineSliceColor(mix(surface, particleType.Color, .18), particleType.Color, 2)
+			images.Idle = roundedImage(mix(surface, particleType.Color, .18), particleType.Color, 8)
 		}
 		button.SetImage(images)
+		previousColor := particleType.Color
+		view.refreshBindings = append(view.refreshBindings, func() {
+			current := view.controller.Simulation.Config.ParticleTypes[typeIndex]
+			button.SetText(shorten(current.Name, 12) + fmt.Sprintf(" · %d", current.Population))
+			if current.Color != previousColor {
+				previousColor = current.Color
+				fill := surface
+				if view.selectedType == typeIndex {
+					fill = mix(surface, current.Color, .18)
+				}
+				images.Idle = roundedImage(fill, current.Color, 8)
+			}
+		})
 	}
 	add := view.addButton(content, 0, listHeight+76, width, "+ Add particle type", false, func() {
 		view.editConfig(func(config *simulation.Config) error {
@@ -106,7 +118,7 @@ func (view *Window) buildTypeIdentity(content *widget.Container, width, detailsY
 			view.requestRebuild()
 		})
 		images := buttonImages(false)
-		images.Idle = uiimage.NewNineSliceColor(swatchColor)
+		images.Idle = roundedImage(swatchColor, swatchColor, 8)
 		button.SetImage(images)
 	}
 
@@ -153,33 +165,36 @@ func (view *Window) buildRadiusControls(content *widget.Container, width, detail
 		Title:   "Particle radius",
 		Hint:    "Visual size and spawn clearance; not inertial mass.",
 		Value:   particleType.ParticleRadius,
+		Read:    func(config simulation.Config) float64 { return config.ParticleTypes[typeIndex].ParticleRadius },
 		Minimum: .5,
 		Maximum: 20,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			config.ParticleTypes[typeIndex].ParticleRadius = value
+			setParticleRadius(config, typeIndex, 0, value)
 		},
 	})
 	view.addNumberControl(content, 0, detailsY+442, width, numericSetting{
 		Title:   "Inner influence radius",
-		Hint:    "Neighbors inside this zone are always repelled.",
+		Hint:    "Linked to outer radius; always larger than the particle.",
 		Value:   particleType.InnerRadius,
+		Read:    func(config simulation.Config) float64 { return config.ParticleTypes[typeIndex].InnerRadius },
 		Minimum: 1,
 		Maximum: 499,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			config.ParticleTypes[typeIndex].InnerRadius = value
+			setParticleRadius(config, typeIndex, 1, value)
 		},
 	})
 	view.addNumberControl(content, 0, detailsY+554, width, numericSetting{
 		Title:   "Outer influence radius",
-		Hint:    "This type exerts no force beyond this distance.",
+		Hint:    "Linked to inner radius; changes keep both zones valid.",
 		Value:   particleType.OuterRadius,
+		Read:    func(config simulation.Config) float64 { return config.ParticleTypes[typeIndex].OuterRadius },
 		Minimum: 2,
 		Maximum: 500,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			config.ParticleTypes[typeIndex].OuterRadius = value
+			setParticleRadius(config, typeIndex, 2, value)
 		},
 	})
 
@@ -187,6 +202,7 @@ func (view *Window) buildRadiusControls(content *widget.Container, width, detail
 
 func (view *Window) buildInfluenceDiagram(content *widget.Container, width, detailsY, typeIndex int) {
 	diagram := ebiten.NewImage(width, 106)
+	view.transientImages = append(view.transientImages, diagram)
 	graphic := widget.NewGraphic(widget.GraphicOpts.Image(diagram))
 	placeWidget(content, graphic, rectangle(0, detailsY+669, width, 106))
 	var prior simulation.ParticleType

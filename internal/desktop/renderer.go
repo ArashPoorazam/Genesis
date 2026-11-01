@@ -24,11 +24,10 @@ func makeParticleSprite(particleType simulation.ParticleType, glow bool) particl
 
 	if glow {
 		haloColor := particleType.Color
-		haloColor.A = 18
-		vector.FillCircle(spriteImage, float32(center), float32(center), float32(particleType.ParticleRadius+10), haloColor, true)
-
-		haloColor.A = 28
-		vector.FillCircle(spriteImage, float32(center), float32(center), float32(particleType.ParticleRadius+4), haloColor, true)
+		for layer := 10; layer > 0; layer-- {
+			haloColor.A = uint8(2 + (10-layer)*2)
+			vector.FillCircle(spriteImage, float32(center), float32(center), float32(particleType.ParticleRadius+float64(layer)), haloColor, true)
+		}
 	}
 	vector.FillCircle(spriteImage, float32(center), float32(center), float32(particleType.ParticleRadius), particleType.Color, true)
 
@@ -50,42 +49,51 @@ func (view *Window) drawText(destination *ebiten.Image, caption string, x, y, si
 
 func (view *Window) Draw(screen *ebiten.Image) {
 	screen.Fill(canvas)
+	if view.introVisible {
+		view.drawIntro(screen)
+		view.captureFrame(screen)
+		return
+	}
 	if view.rootContainer == nil {
 		return
 	}
 
+	view.drawStars(screen)
 	view.drawWorld(screen)
+	view.drawStatus(screen)
 	view.drawPanelBackgrounds(screen)
 	view.ui.Draw(screen)
+	view.drawTooltip(screen)
 
 	if focused := view.ui.GetFocusedWidget(); focused != nil {
 		bounds := focused.GetWidget().Rect
 		vector.StrokeRect(screen, float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Dx()), float32(bounds.Dy()), 1, accent, false)
 	}
 
+	if view.introFade > 0 {
+		vector.FillRect(screen, 0, 0, float32(view.width), float32(view.height), color.NRGBA{R: canvas.R, G: canvas.G, B: canvas.B, A: uint8(255 * view.introFade)}, false)
+	}
 	view.captureFrame(screen)
 }
 
 func (view *Window) drawPanelBackgrounds(screen *ebiten.Image) {
-	vector.FillRect(screen, 0, 0, float32(view.width), 64, panelBG, false)
-	vector.StrokeLine(screen, 0, 63, float32(view.width), 63, 1, border, false)
-	vector.FillRect(screen, 0, float32(view.height-32), float32(view.width), 32, panelBG, false)
-	vector.StrokeLine(screen, 0, float32(view.height-32), float32(view.width), float32(view.height-32), 1, border, false)
+	fillRounded(screen, rectangle(12, 12, view.width-24, 56), 10, panelBG)
+	view.drawBrand(screen)
 
 	if view.inspectorVisible {
 		bounds := view.inspectorRect()
-		vector.FillRect(screen, float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Dx()), float32(bounds.Dy()), panelBG, false)
-		vector.StrokeRect(screen, float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Dx()), float32(bounds.Dy()), 1, border, false)
+		fillRounded(screen, bounds, 10, border)
+		fillRounded(screen, bounds.Inset(1), 9, panelBG)
 		if view.activeDialog == nil {
 			view.drawMatrix(screen)
 		}
 	}
+	if view.activeDialog == nil {
+		view.drawDrawerHandle(screen)
+	}
 
 	if view.activeDialog != nil {
-		vector.FillRect(screen, 0, 0, float32(view.width), float32(view.height), color.NRGBA{A: 180}, false)
-		bounds := view.dialogRect()
-		vector.FillRect(screen, float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Dx()), float32(bounds.Dy()), panelBG, false)
-		vector.StrokeRect(screen, float32(bounds.Min.X), float32(bounds.Min.Y), float32(bounds.Dx()), float32(bounds.Dy()), 1, border, false)
+		view.drawDialogBackground(screen)
 	}
 }
 
@@ -95,18 +103,11 @@ func (view *Window) drawWorld(screen *ebiten.Image) {
 	}
 
 	config := view.controller.Simulation.Config
-	scale := math.Min(float64(view.viewport.Dx())/config.WorldWidth, float64(view.viewport.Dy())/config.WorldHeight)
-	originX := float64(view.viewport.Min.X) + (float64(view.viewport.Dx())-config.WorldWidth*scale)/2
-	originY := float64(view.viewport.Min.Y) + (float64(view.viewport.Dy())-config.WorldHeight*scale)/2
-
-	worldBorder := color.NRGBA{R: 27, G: 35, B: 42, A: 255}
-	vector.StrokeRect(screen, float32(originX), float32(originY), float32(config.WorldWidth*scale), float32(config.WorldHeight*scale), 1, worldBorder, false)
-
-	for _, x := range []float64{originX, originX + config.WorldWidth*scale - 12} {
-		for _, y := range []float64{originY, originY + config.WorldHeight*scale - 12} {
-			vector.StrokeRect(screen, float32(x), float32(y), 12, 12, 1, border, false)
-		}
-	}
+	scaleX := float64(view.viewport.Dx()) / config.WorldWidth
+	scaleY := float64(view.viewport.Dy()) / config.WorldHeight
+	scale := min(scaleX, scaleY)
+	originX, originY := float64(view.viewport.Min.X), float64(view.viewport.Min.Y)
+	destination := screen.SubImage(view.viewport).(*ebiten.Image)
 
 	sprites := view.currentSprites()
 	options := ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
@@ -115,12 +116,12 @@ func (view *Window) drawWorld(screen *ebiten.Image) {
 		options.GeoM.Reset()
 		options.GeoM.Translate(-sprite.center, -sprite.center)
 		options.GeoM.Scale(scale, scale)
-		options.GeoM.Translate(originX+particle.X*scale, originY+particle.Y*scale)
-		screen.DrawImage(sprite.image, &options)
+		options.GeoM.Translate(originX+particle.X*scaleX, originY+particle.Y*scaleY)
+		destination.DrawImage(sprite.image, &options)
 	}
 
 	if view.influencePreviewEnabled {
-		view.drawInfluencePreview(screen, originX, originY, scale)
+		view.drawInfluencePreview(destination, originX, originY, scaleX, scaleY)
 	}
 	if len(view.controller.Simulation.Particles) == 0 {
 		view.drawText(screen, "A world waiting to happen", originX+24, originY+28, 22, ink)
@@ -157,16 +158,35 @@ func (view *Window) currentSprites() []particleSprite {
 	return sprites
 }
 
-func (view *Window) drawInfluencePreview(screen *ebiten.Image, originX, originY, scale float64) {
+func (view *Window) drawInfluencePreview(screen *ebiten.Image, originX, originY, scaleX, scaleY float64) {
 	for _, particle := range view.controller.Simulation.Particles {
 		if particle.TypeIndex != view.selectedType {
 			continue
 		}
 
 		particleType := view.controller.Simulation.Config.ParticleTypes[particle.TypeIndex]
-		x, y := float32(originX+particle.X*scale), float32(originY+particle.Y*scale)
-		vector.StrokeCircle(screen, x, y, float32(particleType.OuterRadius*scale), 1, muted, true)
-		vector.StrokeCircle(screen, x, y, float32(particleType.InnerRadius*scale), 1, danger, true)
+		x, y := float32(originX+particle.X*scaleX), float32(originY+particle.Y*scaleY)
+		for index, radius := range []float64{particleType.OuterRadius, particleType.InnerRadius} {
+			var path vector.Path
+			for segment := 0; segment <= 96; segment++ {
+				angle := float64(segment) * 2 * math.Pi / 96
+				pointX := x + float32(math.Cos(angle)*radius*scaleX)
+				pointY := y + float32(math.Sin(angle)*radius*scaleY)
+				if segment == 0 {
+					path.MoveTo(pointX, pointY)
+				} else {
+					path.LineTo(pointX, pointY)
+				}
+			}
+			path.Close()
+			tint := muted
+			if index == 1 {
+				tint = danger
+			}
+			options := &vector.DrawPathOptions{AntiAlias: true}
+			options.ColorScale.ScaleWithColor(tint)
+			vector.StrokePath(screen, &path, &vector.StrokeOptions{Width: 1}, options)
+		}
 		return
 	}
 }

@@ -15,6 +15,7 @@ func TestInfluencingTypeRadiusAndWrappedEdges(t *testing.T) {
 		}
 	}
 	config.ParticleTypes[0].OuterRadius = 25
+	config.ParticleTypes[0].InnerRadius = 10
 	config.ParticleTypes[1].OuterRadius = 100
 	config.Relationships[0][1] = 1
 	config.Motion.VelocityRetention = 1

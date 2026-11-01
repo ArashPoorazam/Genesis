@@ -22,7 +22,7 @@ func TestDesktopWorkflow(t *testing.T) {
 	}
 	t.Setenv("EGL_PLATFORM", "x11")
 
-	view, err := newWindow(Options{Width: 1024, Height: 768, TypeCount: 5, Seed: 42, UIScale: 1})
+	view, err := newWindow(Options{Width: 1024, Height: 768, TypeCount: 5, Seed: 42, UIScale: 1, SkipIntro: true, OpenInspector: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestDesktopWorkflow(t *testing.T) {
 	view.controller.Paused = true
 
 	driver := &workflowDriver{view: view, width: 1024, height: 768}
-	driver.steps = driver.workflowSteps(t.TempDir())
+	driver.steps = append(driver.relationshipLockSteps(), driver.workflowSteps(t.TempDir())...)
 	ebiten.SetWindowSize(1024, 768)
 	ebiten.SetWindowTitle("Genesis · UI verification")
 
@@ -52,14 +52,25 @@ type workflowDriver struct {
 	stepIndex     int
 	steps         []func() error
 	failure       error
+	capturePath   string
 }
 
-func (driver *workflowDriver) Layout(_, _ int) (int, int) {
+func (driver *workflowDriver) Layout(width, height int) (int, int) {
+	if driver.width == 0 {
+		return driver.view.Layout(width, height)
+	}
 	return driver.view.Layout(driver.width, driver.height)
 }
 
 func (driver *workflowDriver) Draw(screen *ebiten.Image) {
 	driver.view.Draw(screen)
+	if driver.capturePath != "" && !driver.view.needsRebuild {
+		if err := savePNG(screen, driver.capturePath); err != nil {
+			driver.failure = err
+			driver.view.quit = true
+		}
+		driver.capturePath = ""
+	}
 }
 
 func (driver *workflowDriver) Update() error {
@@ -138,7 +149,7 @@ func (driver *workflowDriver) workflowSteps(exchangeDirectory string) []func() e
 			if view.controller.Simulation.Config.Relationships[0][1] != -1.25 || view.status == "" {
 				return fmt.Errorf("invalid input did not show an error while preserving the rule")
 			}
-			return driver.click("Reciprocal edits: off")
+			return driver.click("Link pair: off")
 		},
 		func() error { return driver.submit(0, "0.75") },
 		func() error {
@@ -153,7 +164,7 @@ func (driver *workflowDriver) workflowSteps(exchangeDirectory string) []func() e
 			if view.controller.Simulation.Config.Relationships[0][1] != 0.75 {
 				return fmt.Errorf("undo did not restore matrix")
 			}
-			return driver.click("Randomize relationships")
+			return driver.click("Shuffle relationships")
 		},
 		func() error {
 			if !reflect.DeepEqual(originalParticles, view.controller.Simulation.Particles) {
@@ -209,7 +220,7 @@ func (driver *workflowDriver) workflowSteps(exchangeDirectory string) []func() e
 			}
 			return driver.click("Relationships")
 		},
-		func() error { return driver.click("Randomize relationships") },
+		func() error { return driver.click("Shuffle relationships") },
 		func() error {
 			view.presetDialog()
 			return nil
@@ -249,6 +260,69 @@ func (driver *workflowDriver) workflowSteps(exchangeDirectory string) []func() e
 			return driver.click("Settings")
 		},
 		func() error {
+			scroll := view.scrollContainers[0]
+			for _, delta := range []float64{-1, -8, 1, 8} {
+				scroll.GetWidget().ScrolledEvent.Fire(&widget.WidgetScrolledEventArgs{Y: delta})
+				event.ExecuteDeferred()
+				if scroll.ScrollTop != 0 {
+					return fmt.Errorf("wheel moved a settings section that fits its viewport")
+				}
+			}
+			// Simulate a saved offset from a smaller viewport or an older session.
+			scroll.ScrollTop = .75
+			view.requestRebuild()
+			return nil
+		},
+		func() error {
+			scroll := view.scrollContainers[0]
+			if scroll.ScrollTop != 0 || scroll.ContentRect().Min.Y != scroll.ViewRect().Min.Y {
+				return fmt.Errorf("short settings content retained a stale offset")
+			}
+			return driver.click("Ranges")
+		},
+		func() error {
+			scroll := view.scrollContainers[0]
+			scroll.GetWidget().ScrolledEvent.Fire(&widget.WidgetScrolledEventArgs{Y: -20})
+			event.ExecuteDeferred()
+			if scroll.ScrollTop != 1 {
+				return fmt.Errorf("overflowing settings did not scroll to the bottom")
+			}
+			scroll.GetWidget().ScrolledEvent.Fire(&widget.WidgetScrolledEventArgs{Y: 20})
+			event.ExecuteDeferred()
+			if scroll.ScrollTop != 0 {
+				return fmt.Errorf("overflowing settings did not return to the top")
+			}
+			return nil
+		},
+		func() error { return driver.submit(1, "100") },
+		func() error {
+			config := view.controller.Simulation.Config
+			if err := config.Validate(); err != nil {
+				return err
+			}
+			if view.textFields[2].GetText() != "100.00" || view.textFields[3].GetText() != "100.10" {
+				return fmt.Errorf("dependent range inputs did not refresh")
+			}
+			view.settingsSection = 0
+			view.requestRebuild()
+			return nil
+		},
+		func() error {
+			for _, focusable := range view.rootContainer.GetFocusers() {
+				if slider, ok := focusable.(*widget.Slider); ok && slider.Max == 100 {
+					slider.Current = 42
+					return nil
+				}
+			}
+			return fmt.Errorf("motion slider was not keyboard focusable")
+		},
+		func() error {
+			if view.controller.Simulation.Config.Motion.VelocityRetention != .42 || view.textFields[0].GetText() != "0.42" {
+				return fmt.Errorf("slider event did not synchronize the input and simulation")
+			}
+			return driver.click("Particles")
+		},
+		func() error {
 			lastInput := view.textFields[len(view.textFields)-1]
 			view.ui.SetFocusedWidget(lastInput)
 			event.ExecuteDeferred()
@@ -259,6 +333,8 @@ func (driver *workflowDriver) workflowSteps(exchangeDirectory string) []func() e
 			view.scrollContainers[0].ScrollTop = 1
 			return nil
 		},
+		func() error { return driver.click("Settings") },
+		func() error { return driver.click("Display") },
 		func() error { return driver.click("125%") },
 		func() error {
 			if view.scale != 1.25 {
@@ -268,8 +344,67 @@ func (driver *workflowDriver) workflowSteps(exchangeDirectory string) []func() e
 			return nil
 		},
 		func() error {
-			view.inspectorVisible = false
-			view.requestRebuild()
+			before := view.viewport
+			inspector := view.inspectorContainer
+			root := view.rootContainer
+			view.setInspector(false)
+			if view.needsRebuild || view.inspectorContainer != inspector || view.rootContainer != root {
+				return fmt.Errorf("closing the drawer rebuilt its controls")
+			}
+			if view.inspectorContainer.GetWidget().IsVisible() {
+				return fmt.Errorf("closed inspector remains visible")
+			}
+			if view.viewport != before {
+				return fmt.Errorf("closing a drawer resized the world viewport")
+			}
+			view.drawerHandle.Click()
+			event.ExecuteDeferred()
+			return nil
+		},
+		func() error {
+			if !view.inspectorVisible || !view.inspectorContainer.GetWidget().IsVisible() {
+				return fmt.Errorf("drawer handle did not reopen the inspector")
+			}
+			view.drawerHandle.Click()
+			event.ExecuteDeferred()
+			return nil
+		},
+		func() error {
+			if view.inspectorVisible {
+				return fmt.Errorf("drawer handle did not close the inspector")
+			}
+			for _, focusable := range view.rootContainer.GetFocusers() {
+				if button, ok := focusable.(*widget.Button); ok {
+					switch button.Text().Label {
+					case "Relationships", "Particles", "Settings", "1  Rules", "Pause  Space", "Play  Space":
+						return fmt.Errorf("hidden drawer or shortcut caption remains reachable: %s", button.Text().Label)
+					}
+				}
+			}
+			if view.viewport.Min.X != 0 || view.viewport.Max.X != view.width || view.viewport.Max.Y != view.height {
+				return fmt.Errorf("simulation does not reach the sides and bottom")
+			}
+			if view.playbackRect().Max.Y > view.viewport.Min.Y {
+				return fmt.Errorf("playback controls are not in the top toolbar")
+			}
+			return driver.click("Play")
+		},
+		func() error {
+			if view.controller.Paused {
+				return fmt.Errorf("play did not start the simulation")
+			}
+			return driver.click("Pause")
+		},
+		func() error {
+			driver.width = 0
+			ebiten.SetFullscreen(true)
+			return nil
+		},
+		func() error {
+			if !ebiten.IsFullscreen() || view.viewport.Max.X != view.width || view.viewport.Max.Y != view.height {
+				return fmt.Errorf("fullscreen leaves unused space around the simulation")
+			}
+			ebiten.SetFullscreen(false)
 			return nil
 		},
 		func() error {

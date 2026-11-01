@@ -12,6 +12,7 @@ const (
 	relationshipStream = 1
 	worldStream        = 2
 	spawnStream        = 3
+	neutralStream      = 4
 )
 
 func Default(seed uint64) Config {
@@ -22,14 +23,14 @@ func Default(seed uint64) Config {
 		Motion: Motion{
 			VelocityRetention: 0.90,
 			SpeedLimit:        5,
-			RepulsionStrength: 10,
+			RepulsionStrength: 5,
 		},
 		Generation: Generation{
 			Seed:                  seed,
 			PopulationCeiling:     300,
-			RelationshipAmplitude: 2,
-			MinInnerRadius:        10,
-			MaxInnerRadius:        15,
+			RelationshipAmplitude: 1,
+			MinInnerRadius:        15,
+			MaxInnerRadius:        20,
 			MinOuterRadius:        50,
 			MaxOuterRadius:        120,
 		},
@@ -49,7 +50,7 @@ func Default(seed uint64) Config {
 			ID:             strings.ToLower(name),
 			Name:           name,
 			Color:          colors[index],
-			ParticleRadius: 2,
+			ParticleRadius: 3,
 			InnerRadius:    12,
 			OuterRadius:    80,
 		})
@@ -65,14 +66,34 @@ func newRandomSource(seed, stream uint64) *rand.Rand {
 	return rand.New(rand.NewPCG(seed, stream))
 }
 
-func (config *Config) RandomizeRelations(seed uint64) {
+// RandomizeRelations returns the neutral type, or -1 when none was selected.
+func (config *Config) RandomizeRelations(seed uint64) int {
 	random := newRandomSource(seed, relationshipStream)
 
 	for row := range config.Relationships {
 		for column := range config.Relationships[row] {
-			config.Relationships[row][column] = (random.Float64()*2 - 1) * config.Generation.RelationshipAmplitude
+			config.SetRelationship(row, column, (random.Float64()*2-1)*config.Generation.RelationshipAmplitude)
 		}
 	}
+	neutralRandom := newRandomSource(seed, neutralStream)
+	if neutralRandom.IntN(5) != 0 {
+		return -1
+	}
+	candidates := make([]int, 0, len(config.ParticleTypes))
+	for index := range config.ParticleTypes {
+		if config.canNeutralize(index) {
+			candidates = append(candidates, index)
+		}
+	}
+	if len(candidates) == 0 {
+		return -1
+	}
+	neutral := candidates[neutralRandom.IntN(len(candidates))]
+	for other := range config.ParticleTypes {
+		config.SetRelationship(neutral, other, 0)
+		config.SetRelationship(other, neutral, 0)
+	}
+	return neutral
 }
 
 func (config *Config) RandomizeWorld(seed uint64) {
@@ -101,7 +122,7 @@ func (config *Config) AddType(id string) error {
 		ID:             id,
 		Name:           fmt.Sprintf("Type %d", len(config.ParticleTypes)+1),
 		Color:          color.NRGBA{R: 181, G: 161, B: 242, A: 255},
-		ParticleRadius: 2,
+		ParticleRadius: min(3, config.Generation.MinInnerRadius-.1),
 		InnerRadius:    config.Generation.MinInnerRadius,
 		OuterRadius:    config.Generation.MinOuterRadius,
 	})
@@ -110,6 +131,12 @@ func (config *Config) AddType(id string) error {
 		config.Relationships[row] = append(config.Relationships[row], 0)
 	}
 	config.Relationships = append(config.Relationships, make([]float64, len(config.ParticleTypes)))
+	if config.RelationshipLocks != nil {
+		for row := range config.RelationshipLocks {
+			config.RelationshipLocks[row] = append(config.RelationshipLocks[row], false)
+		}
+		config.RelationshipLocks = append(config.RelationshipLocks, make([]bool, len(config.ParticleTypes)))
+	}
 
 	return nil
 }
@@ -126,6 +153,12 @@ func (config *Config) RemoveType(index int) error {
 	config.Relationships = append(config.Relationships[:index], config.Relationships[index+1:]...)
 	for row := range config.Relationships {
 		config.Relationships[row] = append(config.Relationships[row][:index], config.Relationships[row][index+1:]...)
+	}
+	if config.RelationshipLocks != nil {
+		config.RelationshipLocks = append(config.RelationshipLocks[:index], config.RelationshipLocks[index+1:]...)
+		for row := range config.RelationshipLocks {
+			config.RelationshipLocks[row] = append(config.RelationshipLocks[row][:index], config.RelationshipLocks[row][index+1:]...)
+		}
 	}
 
 	return nil

@@ -53,12 +53,13 @@ func legacyStep(world *Simulation) {
 	}
 }
 
-func TestDefaultPhysicsMatchesOriginalLoop(t *testing.T) {
-	current, _, err := New(Default(42))
+func TestPhysicsMatchesOriginalLoopWithOriginalMotion(t *testing.T) {
+	config := originalMotionConfig()
+	current, _, err := New(config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacy, _, err := New(Default(42))
+	legacy, _, err := New(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +75,13 @@ func TestDefaultPhysicsMatchesOriginalLoop(t *testing.T) {
 	}
 }
 
+func originalMotionConfig() Config {
+	config := Default(42)
+	// Keep the historical force-law regression independent of startup tuning.
+	config.Motion = Motion{VelocityRetention: .90, SpeedLimit: 5, RepulsionStrength: 10}
+	return config
+}
+
 func BenchmarkPhysics(b *testing.B) {
 	implementations := []struct {
 		name string
@@ -85,7 +93,7 @@ func BenchmarkPhysics(b *testing.B) {
 
 	for _, implementation := range implementations {
 		b.Run(implementation.name, func(b *testing.B) {
-			world, _, err := New(Default(42))
+			world, _, err := New(originalMotionConfig())
 			if err != nil {
 				b.Fatal(err)
 			}

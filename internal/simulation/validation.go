@@ -93,6 +93,16 @@ func (particleType ParticleType) validate() error {
 }
 
 func (config Config) validateRelationships() error {
+	if config.RelationshipLocks != nil {
+		if len(config.RelationshipLocks) != len(config.ParticleTypes) {
+			return errors.New("relationship locks do not match particle types")
+		}
+		for _, row := range config.RelationshipLocks {
+			if len(row) != len(config.ParticleTypes) {
+				return errors.New("relationship locks must be square")
+			}
+		}
+	}
 	if len(config.Relationships) != len(config.ParticleTypes) {
 		return errors.New("relationship matrix does not match particle types")
 	}

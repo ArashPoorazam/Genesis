@@ -25,6 +25,7 @@ type Window struct {
 	store      experiment.Store
 	ui         *ebitenui.UI
 	font       *text.GoTextFaceSource
+	fontFaces  map[float64]text.Face
 
 	width                   int
 	height                  int
@@ -36,6 +37,21 @@ type Window struct {
 	glowEnabled             bool
 	influencePreviewEnabled bool
 	showPerformance         bool
+	introVisible            bool
+	introLeaving            bool
+	introFade               float64
+	animationTicks          int
+	logo                    *ebiten.Image
+	atomSticker             *ebiten.Image
+	star                    *ebiten.Image
+	drawerHandle            *widget.Button
+	inspectorContainer      *widget.Container
+	settingsSection         int
+	scrollPositions         map[string]float64
+	scrollKey               string
+	tooltipText             string
+	tooltipTicks            int
+	transientImages         []*ebiten.Image
 
 	matrixExpanded     bool
 	matrixFocused      bool
@@ -45,6 +61,7 @@ type Window struct {
 	firstVisibleRow    int
 	firstVisibleColumn int
 	matrixBounds       image.Rectangle
+	relationshipCard   image.Rectangle
 	matrixRows         int
 	matrixCols         int
 	cellWidth          int
@@ -88,10 +105,14 @@ func (view *Window) Update() error {
 		return ebiten.Termination
 	}
 	if ebiten.IsWindowBeingClosed() && view.activeDialog == nil {
-		view.guard(func() {
-			view.quit = true
-		})
+		view.requestExit()
 	}
+	view.animationTicks++
+	if view.introVisible {
+		view.updateIntro()
+		return nil
+	}
+	view.introFade = max(0, view.introFade-.055)
 
 	if view.needsRebuild {
 		view.buildUI()
@@ -101,19 +122,28 @@ func (view *Window) Update() error {
 	view.ui.Update()
 	view.runPendingActions()
 	view.activateFocusedButton()
+	view.updateTooltip()
 
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		view.controller.EndGesture()
 	}
 
 	if view.activeDialog == nil {
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			if view.ui.GetFocusedWidget() != nil {
+				view.ui.ClearFocus()
+				view.matrixFocused = false
+			} else {
+				view.setInspector(false)
+			}
+		}
 		if !view.isTyping() {
 			view.handleShortcuts()
-			view.updateMatrix()
 		}
+		view.updateMatrix()
 		view.controller.Tick()
 	} else if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		view.closeDialog()
+		view.cancelDialog()
 	}
 
 	// A structural edit invalidates old bindings until the next rebuild.
@@ -152,6 +182,30 @@ func (view *Window) handleShortcuts() {
 			view.controller.Undo()
 		}
 		view.requestRebuild()
+	}
+	if controlPressed {
+		if inpututil.IsKeyJustPressed(ebiten.KeyS) {
+			view.save(ebiten.IsKeyPressed(ebiten.KeyShift), nil)
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyO) {
+			view.presetDialog()
+		}
+		return
+	}
+	for index, key := range []ebiten.Key{ebiten.KeyDigit1, ebiten.KeyDigit2, ebiten.KeyDigit3} {
+		if inpututil.IsKeyJustPressed(key) {
+			view.openInspectorTab(index)
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyI) {
+		view.setInspector(!view.inspectorVisible)
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyR) {
+		view.controller.Restart()
+		view.status = "Restarted from the current seed"
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeySlash) || inpututil.IsKeyJustPressed(ebiten.KeyF1) {
+		view.shortcutDialog()
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {

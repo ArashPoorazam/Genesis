@@ -10,14 +10,15 @@ import (
 )
 
 var (
-	canvas  = color.NRGBA{R: 10, G: 14, B: 18, A: 255}
-	panelBG = color.NRGBA{R: 20, G: 26, B: 32, A: 255}
-	surface = color.NRGBA{R: 29, G: 37, B: 45, A: 255}
-	border  = color.NRGBA{R: 47, G: 58, B: 68, A: 255}
-	ink     = color.NRGBA{R: 232, G: 233, B: 226, A: 255}
-	muted   = color.NRGBA{R: 146, G: 162, B: 174, A: 255}
-	accent  = color.NRGBA{R: 133, G: 218, B: 195, A: 255}
-	danger  = color.NRGBA{R: 239, G: 163, B: 119, A: 255}
+	canvas  = color.NRGBA{R: 3, G: 10, B: 26, A: 255}
+	panelBG = color.NRGBA{R: 12, G: 22, B: 42, A: 255}
+	surface = color.NRGBA{R: 22, G: 35, B: 57, A: 255}
+	border  = color.NRGBA{R: 39, G: 57, B: 82, A: 255}
+	ink     = color.NRGBA{R: 233, G: 243, B: 255, A: 255}
+	muted   = color.NRGBA{R: 177, G: 193, B: 215, A: 255}
+	accent  = color.NRGBA{R: 55, G: 201, B: 249, A: 255}
+	pink    = color.NRGBA{R: 248, G: 91, B: 189, A: 255}
+	danger  = color.NRGBA{R: 255, G: 177, B: 112, A: 255}
 )
 
 // fixedLayout positions controls in local coordinates, including scroll content.
@@ -54,7 +55,18 @@ func placeWidget(parent *widget.Container, child widget.PreferredSizeLocateableW
 }
 
 func (view *Window) fontFace(size float64) text.Face {
-	return &text.GoTextFace{Source: view.font, Size: size}
+	size = max(13, size)
+	if face := view.fontFaces[size]; face != nil {
+		return face
+	}
+	face := &text.GoTextFace{Source: view.font, Size: size}
+	weight := float32(550)
+	if size >= 20 {
+		weight = 650
+	}
+	face.SetVariation(text.MustParseTag("wght"), weight)
+	view.fontFaces[size] = face
+	return face
 }
 
 func (view *Window) addLabel(parent *widget.Container, x, y, width int, caption string, size float64, textColor color.Color) *widget.Text {
@@ -78,27 +90,28 @@ func (view *Window) addLiveLabel(parent *widget.Container, x, y, width int, size
 
 func buttonImages(primary bool) *widget.ButtonImage {
 	idle := surface
-	hover := color.NRGBA{R: 43, G: 55, B: 64, A: 255}
-	pressed := color.NRGBA{R: 53, G: 71, B: 78, A: 255}
+	hover := mix(surface, accent, .16)
+	pressed := mix(surface, accent, .26)
 
 	if primary {
-		idle = color.NRGBA{R: 39, G: 70, B: 64, A: 255}
-		hover = color.NRGBA{R: 48, G: 88, B: 77, A: 255}
-		pressed = color.NRGBA{R: 60, G: 107, B: 94, A: 255}
+		idle = color.NRGBA{R: 17, G: 75, B: 103, A: 255}
+		hover = mix(idle, accent, .25)
+		pressed = mix(idle, accent, .4)
 	}
 
 	return &widget.ButtonImage{
-		Idle:     uiimage.NewBorderedNineSliceColor(idle, border, 1),
-		Hover:    uiimage.NewBorderedNineSliceColor(hover, accent, 1),
-		Pressed:  uiimage.NewBorderedNineSliceColor(pressed, accent, 1),
-		Disabled: uiimage.NewBorderedNineSliceColor(panelBG, border, 1),
+		Idle:     roundedImage(idle, idle, 8),
+		Hover:    roundedImage(hover, mix(border, accent, .4), 8),
+		Pressed:  roundedImage(pressed, accent, 8),
+		Disabled: roundedImage(panelBG, surface, 8),
 	}
 }
 
 func (view *Window) addButton(parent *widget.Container, x, y, width int, caption string, primary bool, action func()) *widget.Button {
-	face := view.fontFace(14)
+	face := view.fontFace(15)
+	images := buttonImages(primary)
 	button := widget.NewButton(
-		widget.ButtonOpts.Image(buttonImages(primary)),
+		widget.ButtonOpts.Image(images),
 		widget.ButtonOpts.Text(caption, &face, &widget.ButtonTextColor{
 			Idle: ink, Disabled: muted, Hover: ink,
 		}),
@@ -112,16 +125,17 @@ func (view *Window) addButton(parent *widget.Container, x, y, width int, caption
 
 	// Space controls playback. Window.activateFocusedButton handles Enter separately.
 	button.DisableDefaultKeys = true
+	button.SetImage(images)
 	placeWidget(parent, button, rectangle(x, y, width, 34))
 	return button
 }
 
 func (view *Window) addTextInput(parent *widget.Container, x, y, width int, initial string, submit func(string) error) *widget.TextInput {
-	face := view.fontFace(14)
+	face := view.fontFace(15)
 	input := widget.NewTextInput(
 		widget.TextInputOpts.Face(&face),
 		widget.TextInputOpts.Image(&widget.TextInputImage{
-			Idle:     uiimage.NewBorderedNineSliceColor(canvas, border, 1),
+			Idle:     roundedImage(canvas, border, 7),
 			Disabled: uiimage.NewNineSliceColor(panelBG),
 		}),
 		widget.TextInputOpts.Color(&widget.TextInputColor{

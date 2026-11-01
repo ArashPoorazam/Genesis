@@ -1,6 +1,8 @@
 package desktop
 
 import (
+	"errors"
+	"os"
 	"strings"
 
 	"github.com/ebitenui/ebitenui/widget"
@@ -9,7 +11,7 @@ import (
 func (view *Window) save(saveAs bool, afterSave func()) {
 	if !saveAs && view.controller.Name != "" {
 		if err := view.store.Save(view.controller.Name, view.controller.Simulation.Config); err != nil {
-			view.reportError(err)
+			view.reportPresetSaveError(err)
 			return
 		}
 		view.controller.MarkSaved(view.controller.Name)
@@ -20,32 +22,88 @@ func (view *Window) save(saveAs bool, afterSave func()) {
 		return
 	}
 
-	view.openDialog(&dialog{
-		title: "Save experiment",
-		body:  "Saves rules, types, world dimensions and seed. Loading starts a fresh experiment, not a snapshot of the current motion.",
-		build: func(parent *widget.Container, x, y, width, height int) {
-			view.addLabel(parent, x, y, width, "Preset name", 14, ink)
-			nameInput := view.addTextInput(parent, x, y+30, width, view.controller.Name, nil)
+	view.savePresetDialog(view.controller.Name, afterSave, view.activeDialog)
+}
 
-			view.addButton(parent, x, y+90, 150, "Save preset", true, func() {
-				name := strings.TrimSpace(nameInput.GetText())
-				write := func() {
-					view.saveNamedPreset(name, afterSave)
-				}
-				if view.store.Exists(name) {
-					view.confirm("Replace existing preset?", "A preset named “"+name+"” already exists.", "Replace", write)
-				} else {
-					write()
-				}
+func (view *Window) savePresetDialog(draft string, afterSave func(), previous *dialog) {
+	next := &dialog{
+		title:   "Save your experiment",
+		body:    "Keep a setup worth coming back to.",
+		height:  492,
+		eyebrow: "YOUR PRESET LIBRARY",
+	}
+	if previous != nil {
+		next.cancel = func() { view.openDialog(previous) }
+	}
+	next.build = func(parent *widget.Container, x, y, width, height int) {
+		view.addLabel(parent, x, y, width, "Preset name", 14, ink)
+		nameInput := view.addTextInput(parent, x, y+28, width, draft, nil)
+		nameInput.GetWidget().LayoutData = rectangle(x, y+28, width, 42)
+		nameInput.ChangedEvent.AddHandler(func(arguments interface{}) {
+			draft = arguments.(*widget.TextInputChangedEventArgs).InputText
+			if view.activeDialog == next {
+				view.status = ""
+			}
+		})
+		view.addLabel(parent, x, y+80, width, "1–64 characters · Saved on this computer", 13, muted)
+		summary := view.addExperimentSummary(parent, x, y+112, width, "Rules, types, world & seed · Loading starts fresh", false)
+		view.refreshBindings = append(view.refreshBindings, func() {
+			name := strings.TrimSpace(nameInput.GetText())
+			if name == "" {
+				name = "Untitled experiment"
+			}
+			summary.Label = view.fitText(name, float64(width-146), 15)
+		})
+		submit := func() {
+			name := strings.TrimSpace(nameInput.GetText())
+			draft = name
+			if name == "" {
+				view.status = "Give your experiment a name before saving."
+				return
+			}
+			if view.store.Exists(name) {
+				view.replacePresetDialog(name, afterSave, next)
+			} else {
+				view.saveNamedPreset(name, afterSave)
+			}
+		}
+		nameInput.SubmitEvent.AddHandler(func(_ interface{}) { submit() })
+		footer := view.dialogRect().Max.Y - 58
+		view.addButton(parent, x, footer, 88, "Cancel", false, view.cancelDialog)
+		view.addButton(parent, x+width-148, footer, 148, "Save preset", true, submit)
+		view.pendingActions = append(view.pendingActions, func() {
+			if view.activeDialog == next {
+				view.ui.SetFocusedWidget(nameInput)
+				nameInput.SelectAll()
+			}
+		})
+	}
+	view.openDialog(next)
+}
+
+func (view *Window) replacePresetDialog(name string, afterSave func(), previous *dialog) {
+	view.openDialog(&dialog{
+		title:   "Replace this preset?",
+		body:    "The saved setup will be replaced with your current experiment.",
+		height:  388,
+		eyebrow: "PRESET ALREADY EXISTS",
+		warning: true,
+		cancel:  func() { view.openDialog(previous) },
+		build: func(parent *widget.Container, x, y, width, height int) {
+			view.addLabel(parent, x, y, width, view.fitText(name, float64(width), 20), 20, ink)
+			view.addLabel(parent, x, y+36, width, "Choose another name to keep both versions.", 13, muted)
+			footer := view.dialogRect().Max.Y - 58
+			view.addButton(parent, x, footer, 100, "Go back", false, view.cancelDialog)
+			view.addButton(parent, x+width-148, footer, 148, "Replace", true, func() {
+				view.saveNamedPreset(name, afterSave)
 			})
-			view.addButton(parent, x+162, y+90, 110, "Cancel", false, view.closeDialog)
 		},
 	})
 }
 
 func (view *Window) saveNamedPreset(name string, afterSave func()) {
 	if err := view.store.Save(name, view.controller.Simulation.Config); err != nil {
-		view.reportError(err)
+		view.reportPresetSaveError(err)
 		return
 	}
 
@@ -55,6 +113,15 @@ func (view *Window) saveNamedPreset(name string, afterSave func()) {
 	if afterSave != nil {
 		afterSave()
 	}
+}
+
+func (view *Window) reportPresetSaveError(err error) {
+	var pathError *os.PathError
+	if errors.As(err, &pathError) {
+		view.status = "Couldn’t save the preset. Check your preset folder’s permissions and available disk space, then try again."
+		return
+	}
+	view.reportError(err)
 }
 
 func (view *Window) presetDialog() {

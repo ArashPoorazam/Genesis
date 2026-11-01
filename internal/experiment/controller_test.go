@@ -255,3 +255,29 @@ func TestRandomizationRespectsBoundsAndSurvivingMotion(t *testing.T) {
 		t.Fatal("world generation not reproducible")
 	}
 }
+
+func TestRelationshipLocksUndoRedo(t *testing.T) {
+	controller := newTestController(t)
+	if err := controller.Edit(func(config *simulation.Config) error { config.ToggleRelationshipLock(0, 1); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !controller.Dirty() || !controller.Simulation.Config.RelationshipLocked(0, 1) {
+		t.Fatal("lock did not mark the experiment dirty")
+	}
+	controller.Undo()
+	if controller.Simulation.Config.RelationshipLocked(0, 1) || controller.Dirty() {
+		t.Fatal("undo did not restore unlocked baseline")
+	}
+	controller.Redo()
+	if !controller.Simulation.Config.RelationshipLocked(0, 1) {
+		t.Fatal("redo did not restore lock")
+	}
+	before := controller.Simulation.Config.Clone()
+	if err := controller.Edit(func(config *simulation.Config) error { config.RandomizeRelations(17); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	controller.Undo()
+	if !reflect.DeepEqual(before, controller.Simulation.Config) {
+		t.Fatal("undo shuffle lost locks or original values")
+	}
+}

@@ -110,3 +110,24 @@ func TestPresetRejectsTrailingUnknownAndOversizedData(t *testing.T) {
 		}
 	}
 }
+
+func TestPresetPreservesLocksAndAcceptsOlderPresets(t *testing.T) {
+	store := Store{t.TempDir()}
+	config := simulation.Default(42)
+	// No lock field is serialized for older-style, fully editable presets.
+	if err := store.Save("Older", config); err != nil {
+		t.Fatal(err)
+	}
+	older, err := store.Load("Older")
+	if err != nil || older.Config.RelationshipLocked(0, 1) {
+		t.Fatalf("older preset: %v", err)
+	}
+	config.ToggleRelationshipLock(0, 1)
+	if err := store.Save("Locked", config); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.Load("Locked")
+	if err != nil || !reflect.DeepEqual(config, loaded.Config) {
+		t.Fatalf("locked preset round trip: %v", err)
+	}
+}

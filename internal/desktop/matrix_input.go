@@ -1,29 +1,55 @@
 package desktop
 
 import (
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"image"
 	"math"
+
+	"github.com/ArashPoorazam/Genesis/internal/simulation"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
+func (view *Window) matrixPointerPress(point image.Point, button ebiten.MouseButton) {
+	if !view.inspectorVisible || view.activeTab != relationshipsTab || view.activeDialog != nil {
+		return
+	}
+	bounds := view.matrixBounds.Add(view.inspectorRect().Min)
+	if !point.In(bounds) {
+		view.matrixFocused = false
+		return
+	}
+	view.ui.ClearFocus()
+	view.selectedRow = view.firstVisibleRow + (point.Y-bounds.Min.Y)/view.cellHeight
+	view.selectedColumn = view.firstVisibleColumn + (point.X-bounds.Min.X)/view.cellWidth
+	view.matrixFocused = true
+	if button == ebiten.MouseButtonRight {
+		view.toggleSelectedRelationshipLock()
+	}
+	view.requestRebuild()
+}
+
+func (view *Window) toggleSelectedRelationshipLock() {
+	view.controller.EndGesture()
+	view.editConfig(func(config *simulation.Config) error {
+		config.ToggleRelationshipLock(view.selectedRow, view.selectedColumn)
+		return nil
+	})
+	view.requestRebuild()
+}
+
 func (view *Window) updateMatrix() {
-	if !view.inspectorVisible || view.activeTab != relationshipsTab {
+	if !view.inspectorVisible || view.activeTab != relationshipsTab || view.activeDialog != nil {
 		return
 	}
 	x, y := ebiten.CursorPosition()
+	bounds := view.matrixBounds.Add(view.inspectorRect().Min)
 	point := image.Pt(x, y)
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		if point.In(view.matrixBounds) {
-			view.selectedRow = view.firstVisibleRow + (y-view.matrixBounds.Min.Y)/view.cellHeight
-			view.selectedColumn = view.firstVisibleColumn + (x-view.matrixBounds.Min.X)/view.cellWidth
-			view.matrixFocused = true
-			view.requestRebuild()
-		} else {
-			view.matrixFocused = false
+	for _, button := range []ebiten.MouseButton{ebiten.MouseButtonLeft, ebiten.MouseButtonRight} {
+		if inpututil.IsMouseButtonJustPressed(button) {
+			view.matrixPointerPress(point, button)
 		}
 	}
-	if point.In(view.matrixBounds) {
+	if point.In(bounds) {
 		wheelX, wheelY := ebiten.Wheel()
 		if ebiten.IsKeyPressed(ebiten.KeyShift) {
 			wheelX, wheelY = wheelY, 0
@@ -56,7 +82,10 @@ func (view *Window) updateMatrix() {
 		view.firstVisibleColumn = max(view.selectedColumn-view.matrixCols+1, min(view.firstVisibleColumn, view.selectedColumn))
 		view.requestRebuild()
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && len(view.textFields) > 0 {
+	if inpututil.IsKeyJustPressed(ebiten.KeyL) {
+		view.toggleSelectedRelationshipLock()
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && len(view.textFields) > 0 && !view.textFields[0].GetWidget().Disabled {
 		view.ui.SetFocusedWidget(view.textFields[0])
 		view.matrixFocused = false
 	}

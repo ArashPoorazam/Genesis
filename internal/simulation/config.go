@@ -43,13 +43,14 @@ type Generation struct {
 // Relationships[row][column] describes how the row type responds to the column type.
 // The two directions are independent, and influence radii belong to the column type.
 type Config struct {
-	Version       int            `json:"version"`
-	WorldWidth    float64        `json:"world_width"`
-	WorldHeight   float64        `json:"world_height"`
-	ParticleTypes []ParticleType `json:"types"`
-	Relationships [][]float64    `json:"relations"`
-	Motion        Motion         `json:"motion"`
-	Generation    Generation     `json:"generation"`
+	Version           int            `json:"version"`
+	WorldWidth        float64        `json:"world_width"`
+	WorldHeight       float64        `json:"world_height"`
+	ParticleTypes     []ParticleType `json:"types"`
+	Relationships     [][]float64    `json:"relations"`
+	RelationshipLocks [][]bool       `json:"relationship_locks,omitempty"`
+	Motion            Motion         `json:"motion"`
+	Generation        Generation     `json:"generation"`
 }
 
 func (config Config) Clone() Config {
@@ -60,6 +61,13 @@ func (config Config) Clone() Config {
 		relationships[row] = append([]float64(nil), config.Relationships[row]...)
 	}
 	config.Relationships = relationships
+	if config.RelationshipLocks != nil {
+		locks := make([][]bool, len(config.RelationshipLocks))
+		for row := range locks {
+			locks[row] = append([]bool(nil), config.RelationshipLocks[row]...)
+		}
+		config.RelationshipLocks = locks
+	}
 
 	return config
 }

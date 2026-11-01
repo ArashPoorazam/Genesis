@@ -17,6 +17,8 @@ func main() {
 	flag.Float64Var(&options.UIScale, "ui-scale", 1, "UI scale, 1–1.5")
 	flag.IntVar(&options.InitialTab, "tab", 0, "inspector: 0 relationships, 1 particles, 2 settings")
 	flag.BoolVar(&options.ExpandMatrix, "expanded", false, "expand relationship matrix")
+	flag.BoolVar(&options.SkipIntro, "skip-intro", false, "open directly into the simulation")
+	flag.BoolVar(&options.OpenInspector, "inspector", false, "start with the inspector drawer open")
 	flag.StringVar(&options.ScreenshotPath, "screenshot", "", "save a PNG and exit after rendering")
 	flag.IntVar(&options.CaptureFrames, "capture-frames", 90, "frames before screenshot and exit")
 	flag.Parse()

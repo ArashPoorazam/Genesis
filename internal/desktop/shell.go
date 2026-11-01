@@ -3,161 +3,193 @@ package desktop
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"math/rand/v2"
 
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
+	uiimage "github.com/ebitenui/ebitenui/image"
+	"github.com/ebitenui/ebitenui/widget"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
 const inspectorWidth = 440
 
 func (view *Window) inspectorRect() image.Rectangle {
+	width := inspectorWidth
 	if view.matrixExpanded && view.activeTab == relationshipsTab {
-		return rectangle(20, 76, view.width-40, view.height-110)
+		width = view.width - 58
 	}
-	return rectangle(view.width-inspectorWidth, 64, inspectorWidth, view.height-96)
+	return rectangle(view.width-width-12, 80, width, view.height-92)
+}
+
+func (view *Window) setInspector(visible bool) {
+	view.ui.ClearFocus()
+	view.matrixFocused = false
+	view.inspectorVisible = visible
+	view.syncInspectorVisibility()
+}
+
+func (view *Window) openInspectorTab(index int) {
+	if view.inspectorVisible && view.activeTab == index {
+		view.setInspector(false)
+		return
+	}
+	view.activeTab = index
+	view.setInspector(true)
+	view.requestRebuild()
+	view.matrixFocused = index == relationshipsTab
+}
+
+func (view *Window) syncInspectorVisibility() {
+	if view.inspectorContainer != nil {
+		visibility := widget.Visibility_Hide
+		if view.inspectorVisible {
+			visibility = widget.Visibility_Show
+		}
+		view.inspectorContainer.GetWidget().SetVisibility(visibility)
+	}
+	if view.drawerHandle != nil {
+		view.drawerHandle.GetWidget().LayoutData = view.drawerHandleRect()
+		view.drawerHandle.SetLocation(view.drawerHandleRect())
+	}
+}
+
+func (view *Window) drawerHandleRect() image.Rectangle {
+	left := view.width - 44
+	if view.inspectorVisible {
+		left = view.inspectorRect().Min.X - 42
+	}
+	return rectangle(left, 102, 44, 64)
 }
 
 func (view *Window) buildUI() {
 	view.rebuilding = true
-	defer func() {
-		view.rebuilding = false
-	}()
-
+	defer func() { view.rebuilding = false }()
+	if len(view.scrollContainers) > 0 && view.scrollKey != "" {
+		view.scrollPositions[view.scrollKey] = view.scrollContainers[0].ScrollTop
+	}
+	view.scrollKey = ""
 	view.controller.EndGesture()
 	view.ui.ClearFocus()
+	for _, texture := range view.transientImages {
+		texture.Deallocate()
+	}
+	view.transientImages = nil
 	view.refreshBindings = nil
 	view.textFields = nil
 	view.scrollContainers = nil
+	view.inspectorContainer = nil
+	view.drawerHandle = nil
 	view.rootContainer = newContainer(view.width, view.height)
 	view.ui.Container = view.rootContainer
+	view.viewport = rectangle(0, 76, view.width, view.height-76)
 
 	lastTypeIndex := len(view.controller.Simulation.Config.ParticleTypes) - 1
 	view.selectedType = min(view.selectedType, lastTypeIndex)
 	view.selectedRow = min(view.selectedRow, lastTypeIndex)
 	view.selectedColumn = min(view.selectedColumn, lastTypeIndex)
-
 	if view.activeDialog != nil {
 		view.buildDialog()
 		return
 	}
-
-	canvasRight := view.width
-	if view.inspectorVisible {
-		canvasRight -= inspectorWidth
-	}
-
-	view.viewport = rectangle(24, 92, canvasRight-48, view.height-214)
-
 	view.buildToolbar()
-	view.buildPlayback(canvasRight)
-	view.buildStatusBar()
-
-	if !view.matrixExpanded || view.activeTab != relationshipsTab || !view.inspectorVisible {
-		view.addLabel(view.rootContainer, 26, 72, 300, "WORLD / LIVE EXPERIMENT", 10, muted)
-	}
-	if view.inspectorVisible {
-		view.buildInspector()
-	}
+	view.buildPlayback()
+	view.buildInspector()
+	bounds := view.drawerHandleRect()
+	view.drawerHandle = view.addButton(view.rootContainer, bounds.Min.X, bounds.Min.Y, bounds.Dx(), "", false, func() {
+		view.setInspector(!view.inspectorVisible)
+	})
+	// The shell paints one continuous drawer silhouette behind this hit target.
+	clear := uiimage.NewNineSliceColor(color.Transparent)
+	view.drawerHandle.SetImage(&widget.ButtonImage{Idle: clear, Hover: clear, Pressed: clear})
+	view.syncInspectorVisibility()
 }
 
 func (view *Window) buildToolbar() {
-	view.addLabel(view.rootContainer, 24, 12, 142, "GENESIS", 22, ink)
-	view.addLabel(view.rootContainer, 25, 39, 140, "PARTICLE LABORATORY", 9, muted)
-
-	presetButton := view.addButton(view.rootContainer, 188, 15, 230, "", false, view.presetDialog)
+	view.addLabel(view.rootContainer, 58, 22, 92, "Genesis", 21, ink)
+	presetButton := view.addButton(view.rootContainer, 154, 23, 100, "", false, view.presetDialog)
 	view.refreshBindings = append(view.refreshBindings, func() {
 		name := view.controller.Name
 		if name == "" {
-			name = "Untitled experiment"
+			name = "Presets"
 		}
 		if view.controller.Dirty() {
 			name += " *"
 		}
-		presetButton.SetText(shorten(name, 27) + "  v")
+		presetButton.SetText(shorten(name, 10))
 	})
-
-	view.addButton(view.rootContainer, 428, 15, 64, "Save", true, func() {
-		view.save(false, nil)
-	})
-	undoButton := view.addButton(view.rootContainer, 504, 15, 64, "Undo", false, func() {
+	view.addButton(view.rootContainer, 262, 23, 52, "Save", false, func() { view.save(false, nil) })
+	right := view.width - 284
+	undo := view.addButton(view.rootContainer, right, 23, 58, "Undo", false, func() {
 		view.controller.Undo()
 		view.requestRebuild()
 	})
-	redoButton := view.addButton(view.rootContainer, 576, 15, 64, "Redo", false, func() {
+	redo := view.addButton(view.rootContainer, right+66, 23, 58, "Redo", false, func() {
 		view.controller.Redo()
 		view.requestRebuild()
 	})
 	view.refreshBindings = append(view.refreshBindings, func() {
-		undoButton.GetWidget().Disabled = !view.controller.CanUndo()
-		redoButton.GetWidget().Disabled = !view.controller.CanRedo()
+		undo.GetWidget().Disabled = !view.controller.CanUndo()
+		redo.GetWidget().Disabled = !view.controller.CanRedo()
 	})
-
-	caption := "Hide inspector"
-	if !view.inspectorVisible {
-		caption = "Show inspector"
-	}
-
-	view.addButton(view.rootContainer, view.width-168, 15, 144, caption, false, func() {
-		view.inspectorVisible = !view.inspectorVisible
-		view.requestRebuild()
-	})
+	view.addButton(view.rootContainer, right+132, 23, 98, "Fullscreen", false, func() { ebiten.SetFullscreen(!ebiten.IsFullscreen()) })
+	view.addButton(view.rootContainer, view.width-50, 23, 30, "?", false, view.shortcutDialog)
 }
 
 func (view *Window) buildInspector() {
 	bounds := view.inspectorRect()
-	x, y := bounds.Min.X+20, bounds.Min.Y+18
+	view.inspectorContainer = newContainer(bounds.Dx(), bounds.Dy())
+	placeWidget(view.rootContainer, view.inspectorContainer, bounds)
+	parent := view.inspectorContainer
 	width := bounds.Dx() - 40
-
 	for index, title := range []string{"Relationships", "Particles", "Settings"} {
-		view.addButton(view.rootContainer, x+index*(width/3), y, width/3-5, title, view.activeTab == index, func() {
+		view.addButton(parent, 20+index*(width/3), 18, width/3-5, title, view.activeTab == index, func() {
 			view.activeTab = index
 			view.requestRebuild()
 		})
 	}
-
-	contentHeight := bounds.Max.Y - y - 72
 	switch view.activeTab {
 	case relationshipsTab:
-		view.buildMatrix(x, y+56, width)
+		view.buildMatrix(20, 78, width)
 	case particlesTab:
-		view.buildParticles(x, y+56, width, contentHeight)
+		view.scrollKey = fmt.Sprintf("particles/%d", view.selectedType)
+		view.buildParticles(20, 78, width, bounds.Dy()-98)
 	case settingsTab:
-		view.buildSettings(x, y+56, width, contentHeight)
+		view.scrollKey = fmt.Sprintf("settings/%d", view.settingsSection)
+		view.buildSettings(20, 78, width, bounds.Dy()-98)
 	}
 }
 
-func (view *Window) buildPlayback(right int) {
-	x, y := 24, view.height-94
-	playButton := view.addButton(view.rootContainer, x, y, 94, "Pause", true, func() {
+func (view *Window) playbackRect() image.Rectangle {
+	return rectangle((view.width-380)/2, 23, 380, 34)
+}
+
+func (view *Window) buildPlayback() {
+	bounds := view.playbackRect()
+	x, y := bounds.Min.X, bounds.Min.Y
+	play := view.addButton(view.rootContainer, x, y, 68, "", true, func() {
 		view.controller.Paused = !view.controller.Paused
 	})
-	stepButton := view.addButton(view.rootContainer, x+102, y, 60, "Step", false, func() {
+	step := view.addButton(view.rootContainer, x+76, y, 56, "Step", false, func() {
 		if view.controller.Paused {
 			view.controller.Simulation.Step()
 		}
 	})
-
 	view.refreshBindings = append(view.refreshBindings, func() {
 		caption := "Pause"
 		if view.controller.Paused {
 			caption = "Play"
 		}
-		playButton.SetText(caption)
-		stepButton.GetWidget().Disabled = !view.controller.Paused
+		play.SetText(caption)
+		step.GetWidget().Disabled = !view.controller.Paused
 	})
-
-	speedButton := view.addButton(view.rootContainer, x+170, y, 66, "1×", false, view.cyclePlaybackSpeed)
-	view.refreshBindings = append(view.refreshBindings, func() {
-		speedButton.SetText(fmt.Sprintf("%g×", view.controller.Speed))
-	})
-
-	view.addButton(view.rootContainer, x+244, y, 126, "Restart particles", false, func() {
+	speed := view.addButton(view.rootContainer, x+140, y, 48, "1×", false, view.cyclePlaybackSpeed)
+	view.refreshBindings = append(view.refreshBindings, func() { speed.SetText(fmt.Sprintf("%g×", view.controller.Speed)) })
+	view.addButton(view.rootContainer, x+204, y, 74, "Restart", false, func() {
 		view.controller.Restart()
 		view.status = "Restarted from the current seed"
 	})
-	view.addButton(view.rootContainer, max(right-132, x+382), y, 108, "New world", false, view.newWorld)
-	view.addLabel(view.rootContainer, x, y+44, right-48, "SPACE pause   ·   . single step   ·   F11 fullscreen", 11, muted)
+	view.addButton(view.rootContainer, x+286, y, 94, "New world", false, view.newWorld)
 }
 
 func (view *Window) cyclePlaybackSpeed() {
@@ -179,34 +211,32 @@ func (view *Window) newWorld() {
 		if err != nil {
 			return
 		}
-
 		view.controller.Restart()
 		view.status = "New world generated"
 		view.requestRebuild()
 	})
 }
 
-func (view *Window) buildStatusBar() {
-	view.addLiveLabel(view.rootContainer, 24, view.height-24, 270, 11, muted, func() string {
-		state := "RUNNING"
-		if view.controller.Paused {
-			state = "PAUSED"
-		}
-
-		caption := fmt.Sprintf("%s   ·   %d particles", state, len(view.controller.Simulation.Particles))
-		if frameRate := ebiten.ActualFPS(); view.showPerformance && frameRate > 0 {
-			caption += fmt.Sprintf("   ·   %.0f FPS", frameRate)
-		}
-		return caption
-	})
-
-	view.addLiveLabel(view.rootContainer, 310, view.height-24, view.width-334, 11, accent, func() string {
-		message := view.status
-		if view.controller.Message != "" {
-			message = view.controller.Message
-		}
-		return shorten(message, (view.width-334)/6)
-	})
+func (view *Window) drawStatus(screen *ebiten.Image) {
+	if view.inspectorVisible && view.matrixExpanded && view.activeTab == relationshipsTab {
+		return
+	}
+	state := "LIVE"
+	if view.controller.Paused {
+		state = "PAUSED"
+	}
+	caption := fmt.Sprintf("%s  /  %d particles", state, len(view.controller.Simulation.Particles))
+	if frameRate := ebiten.ActualFPS(); view.showPerformance && frameRate > 0 {
+		caption += fmt.Sprintf("  /  %.0f fps", frameRate)
+	}
+	view.drawText(screen, caption, 16, float64(view.height-28), 13, muted)
+	message := view.status
+	if view.controller.Message != "" {
+		message = view.controller.Message
+	}
+	if message != "" {
+		view.drawText(screen, shorten(message, max(40, (view.width-inspectorWidth-100)/8)), 16, float64(view.height-52), 13, accent)
+	}
 }
 
 func shorten(value string, maximumRunes int) string {

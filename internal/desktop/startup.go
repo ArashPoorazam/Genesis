@@ -3,15 +3,16 @@ package desktop
 import (
 	"bytes"
 	"fmt"
+	"image/png"
 	"os"
 	"runtime"
 
+	"github.com/ArashPoorazam/Genesis/images"
 	"github.com/ArashPoorazam/Genesis/internal/experiment"
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
 	"github.com/ebitenui/ebitenui"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
-	"golang.org/x/image/font/gofont/goregular"
 )
 
 type Options struct {
@@ -24,6 +25,8 @@ type Options struct {
 	ExpandMatrix   bool
 	ScreenshotPath string
 	CaptureFrames  int
+	SkipIntro      bool
+	OpenInspector  bool
 }
 
 func Run(options Options) error {
@@ -59,7 +62,7 @@ func newWindow(options Options) (*Window, error) {
 	if err != nil {
 		return nil, err
 	}
-	font, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
+	font, err := text.NewGoTextFaceSource(bytes.NewReader(interfaceFont))
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +70,27 @@ func newWindow(options Options) (*Window, error) {
 	if err != nil {
 		return nil, err
 	}
+	logo, err := png.Decode(bytes.NewReader(images.Logo))
+	if err != nil {
+		return nil, fmt.Errorf("load welcome artwork: %w", err)
+	}
+	sticker, err := png.Decode(bytes.NewReader(images.AtomSticker))
+	if err != nil {
+		return nil, fmt.Errorf("load drawer sticker: %w", err)
+	}
 
 	return &Window{
 		controller:       controller,
 		store:            store,
 		font:             font,
+		fontFaces:        make(map[float64]text.Face),
 		ui:               &ebitenui.UI{},
 		scale:            max(1, min(1.5, options.UIScale)),
-		inspectorVisible: true,
+		inspectorVisible: options.OpenInspector || options.ExpandMatrix,
+		introVisible:     !options.SkipIntro,
+		logo:             ebiten.NewImageFromImage(logo),
+		atomSticker:      ebiten.NewImageFromImage(sticker),
+		scrollPositions:  make(map[string]float64),
 		glowEnabled:      true,
 		showPerformance:  true,
 		needsRebuild:     true,
