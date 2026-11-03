@@ -26,6 +26,8 @@ func fillRounded(screen *ebiten.Image, bounds image.Rectangle, radius float32, f
 		return
 	}
 	corner := max(0, min(int(radius), (bounds.Dx()-1)/2, (bounds.Dy()-1)/2))
+	// Reuse a white corner texture and tint at draw time. Caching by radius
+	// avoids rasterizing each matrix cell or storing every possible cell color.
 	shape := shapeImages[corner]
 	if shape == nil {
 		size := corner*2 + 3

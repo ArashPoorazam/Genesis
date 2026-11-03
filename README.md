@@ -81,7 +81,7 @@ internal/
   desktop/              Ebitengine lifecycle, editor panels, shared controls, rendering
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the dependency direction, editing lifecycle, and maintenance conventions.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the dependency direction, editing lifecycle, and maintenance conventions. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to extend the model and editors, preserve invariants, and run the appropriate checks.
 
 ## Verification
 
@@ -89,6 +89,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the dependency direction, editing lif
 go test ./...
 go vet ./...
 go test ./internal/simulation -run '^$' -bench BenchmarkPhysics -benchmem
+go test ./internal/simulation -run '^$' -bench BenchmarkRelationshipEdit -benchmem
 ```
 
 An opt-in integration test runs the actual desktop widget lifecycle, using temporary preset files:
@@ -111,7 +112,7 @@ Measure paused UI rendering separately from physics (1440 × 900, 12 types, unca
 GENESIS_PERF_TEST=1 go test ./internal/desktop -run TestDesktopPerformance -count=1 -v
 ```
 
-Set `GENESIS_PERF_SCREENSHOTS` to an existing directory to also save each layout and a comparison of font weights at 11, 13, 15, and 17 px. Run the two display tests separately; Ebitengine permits only one game lifecycle per process.
+Set `GENESIS_PERF_SCREENSHOTS` to an existing directory to also save each layout and a comparison of font weights at 11, 13, 15, and 17 px. Run each opt-in display test separately; Ebitengine permits only one game lifecycle per process.
 
 Reproducible rendering checks can capture application screenshots and exit:
 

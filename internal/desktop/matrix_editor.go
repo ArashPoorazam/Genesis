@@ -183,9 +183,9 @@ func (view *Window) buildRelationshipControls(x, editorY, width int) {
 	})
 	view.addButton(view.inspectorContainer, x+width-100, editorY+212, 100, "Zero all", false, func() {
 		view.editConfig(func(config *simulation.Config) error {
-			for i := range config.Relationships {
-				for j := range config.Relationships[i] {
-					config.SetRelationship(i, j, 0)
+			for row := range config.Relationships {
+				for column := range config.Relationships[row] {
+					config.SetRelationship(row, column, 0)
 				}
 			}
 			return nil

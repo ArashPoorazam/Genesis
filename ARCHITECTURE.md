@@ -9,6 +9,8 @@ desktop → experiment → simulation
 
 `main.go` parses flags and calls `desktop.Run`. No physics or widget construction belongs in the entry point.
 
+This is a single-process, single-window application. The controller, simulation, UI bindings, and rendering caches are used on the game lifecycle's goroutine; they are not concurrent APIs. Keep filesystem operations in `experiment` and widget dependencies in `desktop`. New abstractions should follow a concrete responsibility rather than introduce a service layer around each function.
+
 ## Simulation
 
 `internal/simulation` has no windowing or filesystem dependency.
@@ -21,6 +23,22 @@ desktop → experiment → simulation
 
 A type's `ID` is stable; a particle's `TypeIndex` is a dense runtime array index. The matrix row responds to the column. Influence radii belong to the influencing column type. Keep these conventions consistent when adding features.
 
+Treat `Simulation.Config` and `Simulation.Particles` as read-only outside the simulation package. `New` and `Apply` clone incoming configurations, including nested relationship and lock matrices. Directly mutating committed configuration bypasses validation, history, and geometry-cache invalidation. Desktop edits must use `Controller.Edit`.
+
+`Apply` separates three kinds of work:
+
+| Change | Runtime work |
+| --- | --- |
+| Relationships, locks, appearance, motion, or generation settings | Validate and clone configuration; retain current particles without scanning them |
+| Type IDs/order or requested populations | Remap survivors by stable ID, trim excess particles, and attempt missing placements |
+| World dimensions or outer influence radii | Rebuild the physics grid and squared-radius cache; dimensions also rewrap surviving positions |
+
+These categories can overlap. Failed placement leaves a smaller actual population and returns a status message; the requested population stays in the configuration. Unrelated edits deliberately do not retry exhausted placement. Restart or a population change attempts placement again.
+
+The grid caps each axis at 128 cells. Its cell-head and neighbor tables occupy at most 1.25 MiB on 64-bit systems, even for a 10,000 × 10,000 world with tiny influence radii. A capped grid uses larger cells, which adds distance checks without losing valid neighbors. One- and two-cell axes enumerate each wrapped cell once. The per-particle linked-list storage is reused between steps. Dense clusters can still approach quadratic interaction cost; the grid bounds memory, not worst-case frame time.
+
+Forces use the shortest wrapped displacement. Inner-zone repulsion is independent of relationships; the outer zone has a triangular force profile. Every velocity is computed before any position moves, so all particles read the same position snapshot. Physics tests retain the historical loop comparison and check grid candidates against an independent all-pairs search.
+
 Relationship locks are an optional square matrix in the configuration. Missing locks in older presets mean all cells are editable. Cloning, type addition/removal, presets, and history preserve the lock matrix. Manual, reciprocal, clear, and random edits use `SetRelationship` to honor locks. Neutral-type selection uses its own seeded random stream and excludes types with any locked nonzero incoming or outgoing connection. Loading another preset and explicit undo/redo restore their complete configurations, including locks.
 
 ## Experiment operations
@@ -29,7 +47,7 @@ Relationship locks are an optional square matrix in the configuration. Missing l
 
 Undo/redo stores configurations, not particle snapshots. Surviving particles keep their current position and velocity. Restoring a removed type creates replacement particles; it cannot restore that type's elapsed trajectory.
 
-Preset storage validates names and complete files before replacing state. JSON writes occur through a temporary file in the destination directory. The schema is versioned independently of the desktop presentation. World generation and restart use the saved seed; appearance controls are session preferences.
+Preset storage validates names and complete files before replacing state. Reads reject unknown fields, trailing data, unsupported versions, and files over 1 MiB. Writes enforce that same byte limit, including their trailing newline, before touching the destination. JSON writes occur through a temporary file in the destination directory, followed by file sync, close, and rename. This protects the existing file from validation and write failures; it does not implement concurrent-writer coordination or directory-sync crash durability. The schema is versioned independently of the desktop presentation. World generation and restart use the saved seed; appearance controls are session preferences.
 
 ## Desktop presentation
 
@@ -52,6 +70,8 @@ Editors are split by responsibility: matrix controls, matrix input, matrix rende
 
 Numeric controls read committed values through a binding so dependent controls refresh without rebuilding the editor or interrupting a drag. Programmatic slider updates are distinguished from user edits to avoid rounding unchanged values or introducing history entries. `linked_settings.go` applies the UI's dependent-radius adjustments within one controller edit; simulation validation remains the final authority for imports and live edits.
 
+Linked-radius callbacks use typed selectors such as `innerInfluenceRadius` and `minimumOuterRadius`. `radiusGap` is the UI's 0.1-unit separation for strict radius ordering, not a physics tolerance. Changing a bound propagates to its neighbors; changing physical size may also raise the generation minimum. Keep these dependent changes inside one edit so a gesture remains one undo entry.
+
 Dialog content replaces the active widget tree, preventing input from reaching controls behind it. Rebuilds suppress stale focus-loss commits and discard old bindings before rendering the next tree.
 
 ## Maintenance conventions
@@ -62,3 +82,5 @@ Dialog content replaces the active widget tree, preventing input from reaching c
 - Keep physics and persistence tests independent of graphics. Use the opt-in desktop workflow test for widget wiring and manual screenshots for visual layout.
 
 The physics benchmark compares the original loop with runtime settings on the same seeded population and repeated evolution window. It measures physics cost only, not rendering or UI throughput.
+
+`BenchmarkRelationshipEdit` measures `Simulation.Apply` with zero and 5,000 particles to catch accidental per-particle work in ordinary edits. It excludes controller history and rendering. See [CONTRIBUTING.md](CONTRIBUTING.md) for verification commands and guidance on extending the code.

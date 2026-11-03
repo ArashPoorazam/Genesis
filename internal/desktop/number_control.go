@@ -108,6 +108,9 @@ func (view *Window) addNumberControl(parent *widget.Container, x, y, width int, 
 	}
 
 	lastValue := setting.Value
+	// The widget emits change events for programmatic Current updates too.
+	// Record the expected position before assigning Current so those events do
+	// not round the committed value or create an extra history entry.
 	lastSlider := int(math.Round(setting.Value / setting.Step))
 	var input *widget.TextInput
 	var slider *widget.Slider

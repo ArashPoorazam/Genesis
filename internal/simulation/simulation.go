@@ -6,6 +6,9 @@ type Particle struct {
 	VX, VY    float64
 }
 
+// Simulation owns validated configuration and its derived physics state.
+// Callers may read Config and Particles; configuration changes must go through Apply.
+// Like the desktop frame loop, this type is intended for single-goroutine use.
 type Simulation struct {
 	Config    Config
 	Particles []Particle
@@ -46,13 +49,21 @@ func (world *Simulation) Apply(config Config) (string, error) {
 	}
 
 	previous := world.Config
-	counts := world.retainParticles(config)
+	populationChanged := populationsChanged(previous, config)
+	dimensionsChanged := previous.WorldWidth != config.WorldWidth || previous.WorldHeight != config.WorldHeight
+
+	// Most slider edits only change forces or appearance. Remap and wrap particles
+	// only when their membership, dense type indices, or coordinate bounds change.
+	var counts []int
+	if populationChanged || dimensionsChanged {
+		counts = world.retainParticles(config)
+	}
 	world.Config = config.Clone()
 
 	if geometryChanged(previous, config) {
 		world.rebuildGeometry()
 	}
-	if populationsChanged(previous, config) {
+	if populationChanged {
 		return world.populate(counts, newRandomSource(config.Generation.Seed, spawnStream)), nil
 	}
 

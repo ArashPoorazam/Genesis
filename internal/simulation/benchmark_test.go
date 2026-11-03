@@ -1,6 +1,7 @@
 package simulation
 
 import (
+	"fmt"
 	"math"
 	"testing"
 )
@@ -107,6 +108,33 @@ func BenchmarkPhysics(b *testing.B) {
 					copy(world.Particles, initial)
 				}
 				implementation.step(world)
+			}
+		})
+	}
+}
+
+// Relationship drags should cost roughly the same regardless of population.
+func BenchmarkRelationshipEdit(b *testing.B) {
+	for _, population := range []int{0, MaxParticles} {
+		b.Run(fmt.Sprintf("Particles%d", population), func(b *testing.B) {
+			config := Default(42)
+			config.WorldWidth, config.WorldHeight = 10000, 10000
+			for index := range config.ParticleTypes {
+				config.ParticleTypes[index].Population = 0
+			}
+			config.ParticleTypes[0].Population = population
+			world, message, err := New(config)
+			if err != nil || message != "" {
+				b.Fatalf("create benchmark world: %v %s", err, message)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for iteration := range b.N {
+				config.Relationships[0][1] = float64(iteration % 2)
+				if _, err := world.Apply(config); err != nil {
+					b.Fatal(err)
+				}
 			}
 		})
 	}

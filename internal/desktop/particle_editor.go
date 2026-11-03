@@ -69,7 +69,6 @@ func (view *Window) buildTypeList(content *widget.Container, width, listHeight i
 		view.requestRebuild()
 	})
 	add.GetWidget().Disabled = len(config.ParticleTypes) >= simulation.MaxTypes
-
 }
 
 func (view *Window) buildTypeIdentity(content *widget.Container, width, detailsY, typeIndex int) {
@@ -121,7 +120,6 @@ func (view *Window) buildTypeIdentity(content *widget.Container, width, detailsY
 		images.Idle = roundedImage(swatchColor, swatchColor, 8)
 		button.SetImage(images)
 	}
-
 }
 
 func (view *Window) buildPopulationControl(content *widget.Container, width, detailsY, typeIndex int) {
@@ -155,7 +153,6 @@ func (view *Window) buildPopulationControl(content *widget.Container, width, det
 		}
 		return fmt.Sprintf("%d placed · 5,000 total limit · new particles use spawn settings", count)
 	})
-
 }
 
 func (view *Window) buildRadiusControls(content *widget.Container, width, detailsY, typeIndex int) {
@@ -170,7 +167,7 @@ func (view *Window) buildRadiusControls(content *widget.Container, width, detail
 		Maximum: 20,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			setParticleRadius(config, typeIndex, 0, value)
+			setParticleRadius(config, typeIndex, physicalRadius, value)
 		},
 	})
 	view.addNumberControl(content, 0, detailsY+442, width, numericSetting{
@@ -182,7 +179,7 @@ func (view *Window) buildRadiusControls(content *widget.Container, width, detail
 		Maximum: 499,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			setParticleRadius(config, typeIndex, 1, value)
+			setParticleRadius(config, typeIndex, innerInfluenceRadius, value)
 		},
 	})
 	view.addNumberControl(content, 0, detailsY+554, width, numericSetting{
@@ -194,10 +191,9 @@ func (view *Window) buildRadiusControls(content *widget.Container, width, detail
 		Maximum: 500,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			setParticleRadius(config, typeIndex, 2, value)
+			setParticleRadius(config, typeIndex, outerInfluenceRadius, value)
 		},
 	})
-
 }
 
 func (view *Window) buildInfluenceDiagram(content *widget.Container, width, detailsY, typeIndex int) {
@@ -220,7 +216,6 @@ func (view *Window) buildInfluenceDiagram(content *widget.Container, width, deta
 		view.drawText(diagram, "Inner · repulsion", 113, 46, 12, danger)
 		view.drawText(diagram, "Center · particle radius", 113, 69, 12, particleType.Color)
 	})
-
 }
 
 func (view *Window) buildRemoveTypeButton(content *widget.Container, width, detailsY, typeIndex int) {
@@ -242,5 +237,4 @@ func (view *Window) buildRemoveTypeButton(content *widget.Container, width, deta
 		})
 	})
 	remove.GetWidget().Disabled = len(view.controller.Simulation.Config.ParticleTypes) == 1
-
 }

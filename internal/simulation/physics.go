@@ -2,6 +2,10 @@ package simulation
 
 import "math"
 
+// Force returns the signed radial force: negative repels and positive attracts.
+// Inside the inner radius, repulsion is independent of the relationship. Between
+// the radii, relationship strength follows a triangle peaking at their midpoint.
+// Radii must satisfy the ordering enforced by Config.Validate.
 func Force(distance, innerRadius, outerRadius, relationship, repulsion float64) float64 {
 	if distance >= outerRadius {
 		return 0
@@ -19,7 +23,8 @@ func Force(distance, innerRadius, outerRadius, relationship, repulsion float64) 
 func (world *Simulation) Step() {
 	world.grid.rebuild(world.Particles)
 
-	// Compute all velocities before moving any particles.
+	// Forces read positions, not velocities. Finish every velocity update before
+	// moving particles so iteration order cannot change the positions being read.
 	for index := range world.Particles {
 		world.applyInfluence(&world.Particles[index])
 	}

@@ -16,7 +16,6 @@ func mix(fromColor, toColor color.NRGBA, amount float64) color.NRGBA {
 		B: uint8(float64(fromColor.B) + (float64(toColor.B)-float64(fromColor.B))*amount),
 		A: 255,
 	}
-
 }
 
 func (view *Window) drawMatrix(screen *ebiten.Image) {

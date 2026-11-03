@@ -2,33 +2,56 @@ package desktop
 
 import "github.com/ArashPoorazam/Genesis/internal/simulation"
 
+// These selectors keep callbacks explicit about which dependent value they edit.
+type particleRadiusZone int
+
+const (
+	physicalRadius particleRadiusZone = iota
+	innerInfluenceRadius
+	outerInfluenceRadius
+)
+
+type generationRadiusBound int
+
+const (
+	minimumInnerRadius generationRadiusBound = iota
+	maximumInnerRadius
+	minimumOuterRadius
+	maximumOuterRadius
+)
+
+// One slider increment separates radii that must be strictly ordered.
+const radiusGap = 0.1
+
 func minimumGeneratedRadius(config *simulation.Config) float64 {
 	minimum := 1.0
 	for _, particleType := range config.ParticleTypes {
-		minimum = max(minimum, particleType.ParticleRadius+.1)
+		minimum = max(minimum, particleType.ParticleRadius+radiusGap)
 	}
 	return minimum
 }
 
-func setGenerationRadius(config *simulation.Config, index int, value float64) {
+// setGenerationRadius moves neighboring bounds outward from the edited bound.
+// Inner and outer intervals may each collapse to one value, but cannot overlap.
+func setGenerationRadius(config *simulation.Config, bound generationRadiusBound, value float64) {
 	generation := &config.Generation
 	values := []float64{generation.MinInnerRadius, generation.MaxInnerRadius, generation.MinOuterRadius, generation.MaxOuterRadius}
 	minimum := minimumGeneratedRadius(config)
-	if index >= 2 {
-		minimum += .1
+	if bound >= minimumOuterRadius {
+		minimum += radiusGap
 	}
-	values[index] = max(minimum, value)
-	for previous := index - 1; previous >= 0; previous-- {
+	values[bound] = max(minimum, value)
+	for previous := int(bound) - 1; previous >= 0; previous-- {
 		gap := 0.0
-		if previous == 1 {
-			gap = .1
+		if previous == int(maximumInnerRadius) {
+			gap = radiusGap
 		}
 		values[previous] = min(values[previous], values[previous+1]-gap)
 	}
-	for next := index + 1; next < len(values); next++ {
+	for next := int(bound) + 1; next < len(values); next++ {
 		gap := 0.0
-		if next == 2 {
-			gap = .1
+		if next == int(minimumOuterRadius) {
+			gap = radiusGap
 		}
 		values[next] = max(values[next], values[next-1]+gap)
 	}
@@ -36,21 +59,22 @@ func setGenerationRadius(config *simulation.Config, index int, value float64) {
 	generation.MinOuterRadius, generation.MaxOuterRadius = values[2], values[3]
 }
 
-func setParticleRadius(config *simulation.Config, typeIndex, zone int, value float64) {
+// setParticleRadius preserves physical < inner < outer within one undoable edit.
+func setParticleRadius(config *simulation.Config, typeIndex int, zone particleRadiusZone, value float64) {
 	particleType := &config.ParticleTypes[typeIndex]
 	switch zone {
-	case 0:
+	case physicalRadius:
 		particleType.ParticleRadius = value
-		particleType.InnerRadius = max(particleType.InnerRadius, value+.1)
-		particleType.OuterRadius = max(particleType.OuterRadius, particleType.InnerRadius+.1)
+		particleType.InnerRadius = max(particleType.InnerRadius, value+radiusGap)
+		particleType.OuterRadius = max(particleType.OuterRadius, particleType.InnerRadius+radiusGap)
 		if config.Generation.MinInnerRadius <= value {
-			setGenerationRadius(config, 0, value+.1)
+			setGenerationRadius(config, minimumInnerRadius, value+radiusGap)
 		}
-	case 1:
-		particleType.InnerRadius = max(value, particleType.ParticleRadius+.1)
-		particleType.OuterRadius = max(particleType.OuterRadius, particleType.InnerRadius+.1)
-	case 2:
-		particleType.OuterRadius = max(value, particleType.ParticleRadius+.2)
-		particleType.InnerRadius = min(particleType.InnerRadius, particleType.OuterRadius-.1)
+	case innerInfluenceRadius:
+		particleType.InnerRadius = max(value, particleType.ParticleRadius+radiusGap)
+		particleType.OuterRadius = max(particleType.OuterRadius, particleType.InnerRadius+radiusGap)
+	case outerInfluenceRadius:
+		particleType.OuterRadius = max(value, particleType.ParticleRadius+2*radiusGap)
+		particleType.InnerRadius = min(particleType.InnerRadius, particleType.OuterRadius-radiusGap)
 	}
 }

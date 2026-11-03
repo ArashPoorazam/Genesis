@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
@@ -54,6 +55,29 @@ func TestPresetLifecycleAndImportValidation(t *testing.T) {
 	}
 	if store.Exists("Nebula") {
 		t.Fatal("delete failed")
+	}
+}
+
+func TestOversizedSavePreservesReadablePreset(t *testing.T) {
+	store := Store{Directory: t.TempDir()}
+	original := simulation.Default(42)
+	if err := store.Save("Keep", original); err != nil {
+		t.Fatal(err)
+	}
+
+	oversized := original.Clone()
+	// IDs are opaque strings without a schema length limit, so a valid config
+	// can still exceed the persistence format's byte budget.
+	oversized.ParticleTypes[0].ID = strings.Repeat("x", maxPresetBytes)
+	if err := oversized.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save("Keep", oversized); err == nil {
+		t.Fatal("saved a preset that the reader would reject")
+	}
+	preset, err := store.Load("Keep")
+	if err != nil || !reflect.DeepEqual(original, preset.Config) {
+		t.Fatalf("oversized save replaced the readable preset: %v", err)
 	}
 }
 

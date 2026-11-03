@@ -85,7 +85,6 @@ func (view *Window) buildMotionSettings(content *widget.Container, width int) {
 			config.Motion.RepulsionStrength = value
 		},
 	})
-
 }
 
 func (view *Window) buildGenerationSettings(content *widget.Container, width int) {
@@ -142,7 +141,6 @@ func (view *Window) buildGenerationSettings(content *widget.Container, width int
 			config.Generation.SpawnSpacing = value
 		},
 	})
-
 }
 
 func (view *Window) buildRandomizationSettings(content *widget.Container, width int) {
@@ -170,7 +168,7 @@ func (view *Window) buildRandomizationSettings(content *widget.Container, width 
 		Maximum: 499,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			setGenerationRadius(config, 0, value)
+			setGenerationRadius(config, minimumInnerRadius, value)
 		},
 	})
 	view.addNumberControl(content, 0, 232, width, numericSetting{
@@ -182,7 +180,7 @@ func (view *Window) buildRandomizationSettings(content *widget.Container, width 
 		Maximum: 499,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			setGenerationRadius(config, 1, value)
+			setGenerationRadius(config, maximumInnerRadius, value)
 		},
 	})
 	view.addNumberControl(content, 0, 320, width, numericSetting{
@@ -194,7 +192,7 @@ func (view *Window) buildRandomizationSettings(content *widget.Container, width 
 		Maximum: 500,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			setGenerationRadius(config, 2, value)
+			setGenerationRadius(config, minimumOuterRadius, value)
 		},
 	})
 	view.addNumberControl(content, 0, 408, width, numericSetting{
@@ -206,10 +204,9 @@ func (view *Window) buildRandomizationSettings(content *widget.Container, width 
 		Maximum: 500,
 		Step:    .1,
 		Apply: func(config *simulation.Config, value float64) {
-			setGenerationRadius(config, 3, value)
+			setGenerationRadius(config, maximumOuterRadius, value)
 		},
 	})
-
 }
 
 func (view *Window) buildAppearanceSettings(content *widget.Container, width int) {
@@ -238,5 +235,4 @@ func (view *Window) buildAppearanceSettings(content *widget.Container, width int
 	view.addButton(content, 0, 354, width, "Hide inspector", false, func() {
 		view.setInspector(false)
 	})
-
 }

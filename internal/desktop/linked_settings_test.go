@@ -10,13 +10,13 @@ import (
 
 func TestLinkedGenerationRadiiStayValid(t *testing.T) {
 	config := simulation.Default(42)
-	setParticleRadius(&config, 0, 0, 20)
+	setParticleRadius(&config, 0, physicalRadius, 20)
 	for pass := 0; pass < 3; pass++ {
-		for index := 0; index < 4; index++ {
+		for bound := minimumInnerRadius; bound <= maximumOuterRadius; bound++ {
 			for _, value := range []float64{2, 20.1, 75, 499, 20, 1} {
-				setGenerationRadius(&config, index, value)
+				setGenerationRadius(&config, bound, value)
 				if err := config.Validate(); err != nil {
-					t.Fatalf("range %d, value %g: %v", index, value, err)
+					t.Fatalf("range %d, value %g: %v", bound, value, err)
 				}
 			}
 		}
@@ -26,11 +26,11 @@ func TestLinkedGenerationRadiiStayValid(t *testing.T) {
 func TestLinkedParticleRadiiStayValid(t *testing.T) {
 	config := simulation.Default(42)
 	for _, value := range []float64{20, .5, 12, 20} {
-		setParticleRadius(&config, 0, 0, value)
+		setParticleRadius(&config, 0, physicalRadius, value)
 		for _, inner := range []float64{499, 1, 20, 300} {
-			setParticleRadius(&config, 0, 1, inner)
+			setParticleRadius(&config, 0, innerInfluenceRadius, inner)
 			for _, outer := range []float64{2, 500, 50, 3} {
-				setParticleRadius(&config, 0, 2, outer)
+				setParticleRadius(&config, 0, outerInfluenceRadius, outer)
 				if err := config.Validate(); err != nil {
 					t.Fatalf("particle %g, inner %g, outer %g: %v", value, inner, outer, err)
 				}
@@ -48,7 +48,7 @@ func TestLinkedGestureUndoesAllDependentChanges(t *testing.T) {
 	controller.BeginGesture()
 	for _, value := range []float64{100, 200, 300} {
 		if err := controller.Edit(func(config *simulation.Config) error {
-			setGenerationRadius(config, 0, value)
+			setGenerationRadius(config, minimumInnerRadius, value)
 			return nil
 		}); err != nil {
 			t.Fatal(err)

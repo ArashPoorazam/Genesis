@@ -2,8 +2,12 @@ package simulation
 
 import "math"
 
+// Bound both memory and the work to clear empty cells on every physics step.
+// At 128 × 128 cells, heads and neighbor tables use at most 1.25 MiB on 64-bit systems.
+const maxGridAxisCells = 128
+
 // spatialGrid stores linked particle indices in cells and precomputes wrapped neighbors.
-// Cells are at least as wide as the maximum interaction radius.
+// Each axis either has one cell or cells at least as wide as the search radius.
 type spatialGrid struct {
 	columns, rows         int
 	cellWidth, cellHeight float64
@@ -13,8 +17,9 @@ type spatialGrid struct {
 }
 
 func newGrid(width, height, radius float64) *spatialGrid {
-	columns := max(1, int(width/max(radius, 1)))
-	rows := max(1, int(height/max(radius, 1)))
+	// Fewer, larger cells add candidates but never exclude an interacting pair.
+	columns := min(maxGridAxisCells, max(1, int(width/max(radius, 1))))
+	rows := min(maxGridAxisCells, max(1, int(height/max(radius, 1))))
 	grid := &spatialGrid{
 		columns:       columns,
 		rows:          rows,
@@ -30,6 +35,8 @@ func newGrid(width, height, radius float64) *spatialGrid {
 			cell := row*columns + column
 			neighborIndex := 0
 
+			// With one or two cells, wrapping a full 3 × 3 neighborhood would
+			// visit the same cell twice and incorrectly multiply its forces.
 			for rowOffset := range min(3, rows) {
 				for columnOffset := range min(3, columns) {
 					neighborRow := (row + rowOffset - 1 + rows) % rows

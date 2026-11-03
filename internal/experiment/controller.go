@@ -84,12 +84,11 @@ func (controller *Controller) pushUndo(config simulation.Config) {
 	}
 }
 
+// Edit commits a change atomically through Simulation.Apply. The callback receives
+// a private draft; an error leaves particles, configuration, and history intact.
 func (controller *Controller) Edit(change func(*simulation.Config) error) error {
 	next := controller.Simulation.Config.Clone()
 	if err := change(&next); err != nil {
-		return err
-	}
-	if err := next.Validate(); err != nil {
 		return err
 	}
 	if reflect.DeepEqual(next, controller.Simulation.Config) {

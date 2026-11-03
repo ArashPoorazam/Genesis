@@ -94,3 +94,71 @@ func TestCrowdedSpawnIsBoundedAndUnrelatedEditsDoNotRetry(t *testing.T) {
 		t.Fatal("unrelated edit retried exhausted spawn")
 	}
 }
+
+func TestApplyResizesWorldWithoutChangingVelocity(t *testing.T) {
+	config := Default(42)
+	for index := range config.ParticleTypes {
+		config.ParticleTypes[index].Population = 0
+	}
+	config.ParticleTypes[0].Population = 1
+	world, _, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	world.Particles[0] = Particle{TypeIndex: 0, X: 350, Y: 250, VX: 2, VY: -3}
+	config.WorldWidth, config.WorldHeight = 200, 100
+	if _, err := world.Apply(config); err != nil {
+		t.Fatal(err)
+	}
+	want := Particle{TypeIndex: 0, X: 150, Y: 50, VX: 2, VY: -3}
+	if len(world.Particles) != 1 || world.Particles[0] != want {
+		t.Fatalf("resize changed motion or failed to wrap: %v", world.Particles)
+	}
+}
+
+func TestApplyReordersTypesByStableID(t *testing.T) {
+	config := Default(42)
+	world, _, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := append([]Particle(nil), world.Particles...)
+	config.ParticleTypes[0], config.ParticleTypes[1] = config.ParticleTypes[1], config.ParticleTypes[0]
+	config.Relationships[0], config.Relationships[1] = config.Relationships[1], config.Relationships[0]
+	for _, row := range config.Relationships {
+		row[0], row[1] = row[1], row[0]
+	}
+	if _, err := world.Apply(config); err != nil {
+		t.Fatal(err)
+	}
+	for index := range before {
+		switch before[index].TypeIndex {
+		case 0:
+			before[index].TypeIndex = 1
+		case 1:
+			before[index].TypeIndex = 0
+		}
+	}
+	if !reflect.DeepEqual(before, world.Particles) {
+		t.Fatal("reordering types changed surviving motion or particle membership")
+	}
+}
+
+func TestApplyOwnsItsConfiguration(t *testing.T) {
+	config := Default(42)
+	world, _, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ToggleRelationshipLock(0, 1)
+	if _, err := world.Apply(config); err != nil {
+		t.Fatal(err)
+	}
+	committed := world.Config.Clone()
+	config.ParticleTypes[0].Name = "Changed outside Apply"
+	config.Relationships[0][0] = 10
+	config.ToggleRelationshipLock(0, 1)
+	if !reflect.DeepEqual(committed, world.Config) {
+		t.Fatal("editing the caller's draft changed committed configuration")
+	}
+}
