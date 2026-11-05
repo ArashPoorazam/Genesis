@@ -53,7 +53,7 @@ Preset storage validates names and complete files before replacing state. Reads 
 
 `internal/soundtrack` owns the Ebitengine audio context, the decoded looping handpan score, and short action players. The `audio` package embeds only the OGG score and water-drop WAV cue. `desktop` explicitly starts audio for normal runs; headless checks and screenshot captures do not open a device. The player fades volume changes, ducks the music during cues, and permits one cue at a time. Only important semantic actions queue cues; routine widgets are silent. Actions in the same update coalesce into one water drop. Background music defaults to off.
 
-`experiment.AudioPreferences` stores local mute, enable, and volume values separately from presets. Desktop saves these atomically after a short debounce and flushes pending changes on normal exit. These controls never enter simulation configuration or undo history. Sound generation is an offline development step in `audio/generate_audio.py`; Python and ffmpeg are not runtime dependencies.
+`experiment.AudioPreferences` stores local mute, enable, and volume values separately from presets. Desktop saves these atomically after a short debounce and flushes pending changes on normal exit. These controls never enter simulation configuration or undo history. Music generation is an offline development step in `audio/generate_audio.py`; `audio/generate_water_drop.py` generates the interaction cue. Python and ffmpeg are not runtime dependencies.
 
 `internal/desktop.Window` implements Ebitengine's `Layout`, `Update`, and `Draw` methods.
 
