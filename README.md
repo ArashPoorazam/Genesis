@@ -36,7 +36,7 @@ The logo welcome screen opens with **press anything to continue...**; a key, mou
 - **Restart particles:** regenerates positions and initial velocities from the current setup and seed.
 - **New world:** chooses a new seed and generates relationships, influence radii, populations, and positions for the current particle types.
 
-Startup defaults use relationship values from −1 to +1, inner repulsion strength 5, particle radius 1, inner influence radii randomly chosen from 18–25, and outer influence radii from 40–120. The random population ceiling is 500 per type (generated populations range from 0 to 499). Particle glow defaults to off. World generation uses the same lock-aware relationship shuffle. Existing presets retain their saved values.
+Startup defaults use relationship values from −1 to +1, inner repulsion strength 5, particle radius 1.5, inner influence radii randomly chosen from 18–25, and outer influence radii from 40–120. The random population ceiling is 500 per type (generated populations range from 0 to 499). Particle glow defaults to off. World generation uses the same lock-aware relationship shuffle. Existing presets retain their saved values.
 
 The world uses wrapped boundaries. Window size, UI scale, and inspector visibility affect only presentation, not world dimensions or physics. Positions map across the full available width and height without letterboxing or cropping. Particle markers remain circular; influence previews follow the horizontal and vertical world scales.
 
