@@ -14,6 +14,7 @@ import (
 
 // numericSetting keeps a control's label, range, and config edit together.
 type numericSetting struct {
+	Session  bool
 	Disabled bool
 	Title    string
 	Hint     string
@@ -55,7 +56,7 @@ func (view *Window) addSlider(parent *widget.Container, x, y, width int, setting
 			},
 		),
 		widget.SliderOpts.ChangedHandler(func(changeEvent *widget.SliderChangedEventArgs) {
-			if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			if !setting.Session && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 				view.controller.BeginGesture()
 			}
 			view.reportError(change(float64(changeEvent.Current) / factor))

@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
+	"github.com/ArashPoorazam/Genesis/internal/soundtrack"
 	uiimage "github.com/ebitenui/ebitenui/image"
 	"github.com/ebitenui/ebitenui/widget"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -167,9 +168,7 @@ func (view *Window) playbackRect() image.Rectangle {
 func (view *Window) buildPlayback() {
 	bounds := view.playbackRect()
 	x, y := bounds.Min.X, bounds.Min.Y
-	play := view.addButton(view.rootContainer, x, y, 68, "", true, func() {
-		view.controller.Paused = !view.controller.Paused
-	})
+	play := view.addButton(view.rootContainer, x, y, 68, "", true, view.togglePlayback)
 	step := view.addButton(view.rootContainer, x+76, y, 56, "Step", false, func() {
 		if view.controller.Paused {
 			view.controller.Simulation.Step()
@@ -185,10 +184,7 @@ func (view *Window) buildPlayback() {
 	})
 	speed := view.addButton(view.rootContainer, x+140, y, 48, "1×", false, view.cyclePlaybackSpeed)
 	view.refreshBindings = append(view.refreshBindings, func() { speed.SetText(fmt.Sprintf("%g×", view.controller.Speed)) })
-	view.addButton(view.rootContainer, x+204, y, 74, "Restart", false, func() {
-		view.controller.Restart()
-		view.status = "Restarted from the current seed"
-	})
+	view.addButton(view.rootContainer, x+204, y, 74, "Restart", false, view.restartParticles)
 	view.addButton(view.rootContainer, x+286, y, 94, "New world", false, view.newWorld)
 }
 
@@ -213,6 +209,7 @@ func (view *Window) newWorld() {
 		}
 		view.controller.Restart()
 		view.status = "New world generated"
+		view.sound.Queue(soundtrack.NewWorld)
 		view.requestRebuild()
 	})
 }

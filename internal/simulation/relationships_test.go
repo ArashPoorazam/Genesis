@@ -12,11 +12,11 @@ func TestStartupDefaults(t *testing.T) {
 		if err := config.Validate(); err != nil {
 			t.Fatal(err)
 		}
-		if config.Motion.RepulsionStrength != 5 || config.Generation.RelationshipAmplitude != 1 || config.Generation.MinInnerRadius != 15 || config.Generation.MaxInnerRadius != 20 {
+		if config.Motion.RepulsionStrength != 5 || config.Generation.RelationshipAmplitude != 1 || config.Generation.MinInnerRadius != 18 || config.Generation.MaxInnerRadius != 25 || config.Generation.MinOuterRadius != 40 || config.Generation.MaxOuterRadius != 120 {
 			t.Fatal("incorrect startup defaults")
 		}
 		for _, particleType := range config.ParticleTypes {
-			if particleType.ParticleRadius != 3 || particleType.InnerRadius < 15 || particleType.InnerRadius >= 20 {
+			if particleType.ParticleRadius != 1 || particleType.InnerRadius < 18 || particleType.InnerRadius >= 25 || particleType.OuterRadius < 40 || particleType.OuterRadius >= 120 {
 				t.Fatalf("incorrect particle defaults: %+v", particleType)
 			}
 		}
@@ -141,7 +141,7 @@ func TestRelationshipLockCloneAndTypeChanges(t *testing.T) {
 			t.Fatal("new type inherited a lock")
 		}
 	}
-	if config.ParticleTypes[4].ParticleRadius != 3 {
+	if config.ParticleTypes[4].ParticleRadius != 1 {
 		t.Fatal("new types did not use the new radius")
 	}
 	for _, locks := range [][][]bool{{{true}}, make([][]bool, 5)} {

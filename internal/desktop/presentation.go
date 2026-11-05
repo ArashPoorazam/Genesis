@@ -188,6 +188,7 @@ func (view *Window) shortcutDialog() {
 				{"Arrows / Enter", "Adjust slider or matrix / activate or commit"},
 				{"Right-click / L", "Lock or unlock a matrix cell (L when matrix focused)"},
 				{"? / F1", "Show this guide"},
+				{"M", "Mute or unmute music and effects"},
 			}
 			for index, row := range rows {
 				view.addLabel(parent, x, y+index*32, 202, row[0], 12, accent)

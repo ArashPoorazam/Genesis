@@ -19,6 +19,7 @@ func main() {
 	flag.BoolVar(&options.ExpandMatrix, "expanded", false, "expand relationship matrix")
 	flag.BoolVar(&options.SkipIntro, "skip-intro", false, "open directly into the simulation")
 	flag.BoolVar(&options.OpenInspector, "inspector", false, "start with the inspector drawer open")
+	flag.BoolVar(&options.Mute, "mute", false, "disable audio for this run without opening an audio device")
 	flag.StringVar(&options.ScreenshotPath, "screenshot", "", "save a PNG and exit after rendering")
 	flag.IntVar(&options.CaptureFrames, "capture-frames", 90, "frames before screenshot and exit")
 	flag.Parse()

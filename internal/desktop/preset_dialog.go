@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"errors"
+	"github.com/ArashPoorazam/Genesis/internal/soundtrack"
 	"os"
 	"strings"
 
@@ -16,6 +17,7 @@ func (view *Window) save(saveAs bool, afterSave func()) {
 		}
 		view.controller.MarkSaved(view.controller.Name)
 		view.status = "Preset saved"
+		view.sound.Queue(soundtrack.Save)
 		if afterSave != nil {
 			afterSave()
 		}
@@ -110,6 +112,7 @@ func (view *Window) saveNamedPreset(name string, afterSave func()) {
 	view.controller.MarkSaved(name)
 	view.closeDialog()
 	view.status = "Saved " + name
+	view.sound.Queue(soundtrack.Save)
 	if afterSave != nil {
 		afterSave()
 	}
@@ -172,6 +175,7 @@ func (view *Window) buildPresetRow(parent *widget.Container, width, y int, name 
 			}
 			view.closeDialog()
 			view.status = "Loaded " + name
+			view.sound.Queue(soundtrack.NewWorld)
 		})
 	})
 

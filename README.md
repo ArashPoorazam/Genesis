@@ -40,11 +40,18 @@ Startup defaults use relationship values from −1 to +1, inner repulsion streng
 
 The world uses wrapped boundaries. Window size, UI scale, and inspector visibility affect only presentation, not world dimensions or physics. Positions map across the full available width and height without letterboxing or cropping. Particle markers remain circular; influence previews follow the horizontal and vertical world scales.
 
+### Sound
+
+Genesis includes **Quiet Orbits**, the original handpan soundtrack, as a seamless background loop. Background music defaults to off. Soft water-drop cues accompany only play/pause, successful saves and loads, restarting particles, creating a world, shuffling relationships, and updating population. Routine controls are silent. Cues briefly lower enabled music and never stack over one another. When enabled, music continues while the simulation is paused.
+
+Open **Settings → Sound** for separate music and effects switches and volume sliders. **M** mutes or unmutes everything when you are not typing. Listening preferences are remembered in `genesis/audio.json` beneath the user configuration directory, separately from experiment presets and undo history. Audio is embedded in the executable and works offline. Use `-mute` to run without opening an audio device; screenshot captures are automatically silent.
+
 ### Keyboard
 
 | Key                                                  | Action                                                                  |
 | ---------------------------------------------------- | ----------------------------------------------------------------------- |
 | Space                                                | Play / pause                                                            |
+| `M`                                                  | Mute / unmute music and effects                                          |
 | `.`                                                  | One physics step while paused                                           |
 | `1` / `2` / `3`                                      | Toggle rules / particles / settings drawer                              |
 | `I`                                                  | Toggle the current inspector                                            |
@@ -105,6 +112,15 @@ GENESIS_DIALOG_TEST=1 go test ./internal/desktop -run TestDesktopDialogs -count=
 ```
 
 Set `GENESIS_DIALOG_SCREENSHOTS` to an existing directory to capture dialog previews during that test.
+
+Verify the audio device, looping, cue suppression, mute, and sound controls in separate processes:
+
+```sh
+GENESIS_AUDIO_TEST=1 go test ./internal/soundtrack -run '^TestAudioPlayback$' -count=1 -v
+GENESIS_SOUND_UI_TEST=1 go test ./internal/desktop -run '^TestDesktopSoundSettings$' -count=1 -v
+```
+
+The playback check briefly plays audio. Set `GENESIS_SOUND_SCREENSHOTS` to an existing directory to capture the Sound panel. See `audio/README.md` for the score, previews, and reproducible synthesis source.
 
 Measure paused UI rendering separately from physics (1440 × 900, 12 types, uncapped frames):
 

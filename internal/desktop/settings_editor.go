@@ -23,14 +23,14 @@ func (view *Window) toggle(content *widget.Container, x, y, width int, title str
 }
 
 func (view *Window) buildSettings(x, y, width, height int) {
-	view.addLabel(view.inspectorContainer, x, y, width, "World settings", 23, ink)
-	for index, title := range []string{"Motion", "Spawn", "Ranges", "Display"} {
-		view.addButton(view.inspectorContainer, x+index*(width/4), y+40, width/4-5, title, view.settingsSection == index, func() {
+	view.addLabel(view.inspectorContainer, x, y, width, "Laboratory settings", 23, ink)
+	for index, title := range []string{"Motion", "Spawn", "Ranges", "Display", "Sound"} {
+		view.addButton(view.inspectorContainer, x+index*(width/5), y+40, width/5-5, title, view.settingsSection == index, func() {
 			view.settingsSection = index
 			view.requestRebuild()
 		})
 	}
-	heights := []int{390, 480, 518, 410}
+	heights := []int{390, 480, 518, 410, 420}
 	content := view.addScrollArea(view.inspectorContainer, x, y+92, width, height-92, heights[view.settingsSection])
 	width -= 24
 	switch view.settingsSection {
@@ -42,6 +42,8 @@ func (view *Window) buildSettings(x, y, width, height int) {
 		view.buildRandomizationSettings(content, width)
 	case 3:
 		view.buildAppearanceSettings(content, width)
+	case 4:
+		view.buildSoundSettings(content, width)
 	}
 }
 

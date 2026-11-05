@@ -3,9 +3,11 @@ package desktop
 
 import (
 	"image"
+	"time"
 
 	"github.com/ArashPoorazam/Genesis/internal/experiment"
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
+	"github.com/ArashPoorazam/Genesis/internal/soundtrack"
 	"github.com/ebitenui/ebitenui"
 	"github.com/ebitenui/ebitenui/widget"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -21,11 +23,16 @@ const (
 
 // Window owns presentation state. Simulation configuration lives in the controller.
 type Window struct {
-	controller *experiment.Controller
-	store      experiment.Store
-	ui         *ebitenui.UI
-	font       *text.GoTextFaceSource
-	fontFaces  map[float64]text.Face
+	controller           *experiment.Controller
+	store                experiment.Store
+	ui                   *ebitenui.UI
+	font                 *text.GoTextFaceSource
+	fontFaces            map[float64]text.Face
+	sound                *soundtrack.Player
+	audioPreferences     experiment.AudioPreferences
+	audioPreferencesPath string
+	audioSaveAt          time.Time
+	audioDisabled        bool
 
 	width                   int
 	height                  int
@@ -101,6 +108,7 @@ func (view *Window) Layout(width, height int) (int, int) {
 }
 
 func (view *Window) Update() error {
+	defer view.updateAudio()
 	if view.quit {
 		return ebiten.Termination
 	}
@@ -108,6 +116,9 @@ func (view *Window) Update() error {
 		view.requestExit()
 	}
 	view.animationTicks++
+	if inpututil.IsKeyJustPressed(ebiten.KeyM) && !view.isTyping() && !ebiten.IsKeyPressed(ebiten.KeyControl) && !ebiten.IsKeyPressed(ebiten.KeyMeta) {
+		view.toggleMute()
+	}
 	if view.introVisible {
 		view.updateIntro()
 		return nil
@@ -201,15 +212,14 @@ func (view *Window) handleShortcuts() {
 		view.setInspector(!view.inspectorVisible)
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyR) {
-		view.controller.Restart()
-		view.status = "Restarted from the current seed"
+		view.restartParticles()
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeySlash) || inpututil.IsKeyJustPressed(ebiten.KeyF1) {
 		view.shortcutDialog()
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		view.controller.Paused = !view.controller.Paused
+		view.togglePlayback()
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyPeriod) && view.controller.Paused {
 		view.controller.Simulation.Step()

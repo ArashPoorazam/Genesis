@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
+	"github.com/ArashPoorazam/Genesis/internal/soundtrack"
 )
 
 // matrixLayout reserves space for the selected rule and global actions before
@@ -176,6 +177,7 @@ func (view *Window) buildRelationshipControls(x, editorY, width int) {
 			return
 		}
 		view.status = "Relationships shuffled · Locked cells kept"
+		view.sound.Queue(soundtrack.Shuffle)
 		if neutral >= 0 {
 			view.status += " · " + view.controller.Simulation.Config.ParticleTypes[neutral].Name + " is neutral"
 		}

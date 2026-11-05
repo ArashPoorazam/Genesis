@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
+	"github.com/ArashPoorazam/Genesis/internal/soundtrack"
 	"github.com/ebitenui/ebitenui/widget"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -142,6 +143,7 @@ func (view *Window) buildPopulationControl(content *widget.Container, width, det
 		} else {
 			popError.Label = ""
 			view.status = "Population updated; surviving particles retained"
+			view.sound.Queue(soundtrack.Population)
 		}
 	})
 	view.addLiveLabel(content, 0, detailsY+288, width, 11, muted, func() string {

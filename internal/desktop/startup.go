@@ -10,6 +10,7 @@ import (
 	"github.com/ArashPoorazam/Genesis/images"
 	"github.com/ArashPoorazam/Genesis/internal/experiment"
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
+	"github.com/ArashPoorazam/Genesis/internal/soundtrack"
 	"github.com/ebitenui/ebitenui"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -27,6 +28,7 @@ type Options struct {
 	CaptureFrames  int
 	SkipIntro      bool
 	OpenInspector  bool
+	Mute           bool
 }
 
 func Run(options Options) error {
@@ -42,6 +44,8 @@ func Run(options Options) error {
 	if err != nil {
 		return err
 	}
+	view.startAudio(options)
+	defer view.closeAudio()
 
 	ebiten.SetWindowSize(options.Width, options.Height)
 	ebiten.SetWindowSizeLimits(1024, 768, -1, -1)
@@ -80,6 +84,8 @@ func newWindow(options Options) (*Window, error) {
 	}
 
 	return &Window{
+		audioPreferences: experiment.DefaultAudioPreferences(),
+		sound:            soundtrack.New(experiment.DefaultAudioPreferences()),
 		controller:       controller,
 		store:            store,
 		font:             font,
@@ -91,7 +97,7 @@ func newWindow(options Options) (*Window, error) {
 		logo:             ebiten.NewImageFromImage(logo),
 		atomSticker:      ebiten.NewImageFromImage(sticker),
 		scrollPositions:  make(map[string]float64),
-		glowEnabled:      true,
+		glowEnabled:      false,
 		showPerformance:  true,
 		needsRebuild:     true,
 		activeTab:        max(relationshipsTab, min(settingsTab, options.InitialTab)),

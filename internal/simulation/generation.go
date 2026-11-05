@@ -29,9 +29,9 @@ func Default(seed uint64) Config {
 			Seed:                  seed,
 			PopulationCeiling:     300,
 			RelationshipAmplitude: 1,
-			MinInnerRadius:        15,
-			MaxInnerRadius:        20,
-			MinOuterRadius:        50,
+			MinInnerRadius:        18,
+			MaxInnerRadius:        25,
+			MinOuterRadius:        40,
 			MaxOuterRadius:        120,
 		},
 	}
@@ -50,7 +50,7 @@ func Default(seed uint64) Config {
 			ID:             strings.ToLower(name),
 			Name:           name,
 			Color:          colors[index],
-			ParticleRadius: 3,
+			ParticleRadius: 1,
 			InnerRadius:    12,
 			OuterRadius:    80,
 		})
@@ -122,7 +122,7 @@ func (config *Config) AddType(id string) error {
 		ID:             id,
 		Name:           fmt.Sprintf("Type %d", len(config.ParticleTypes)+1),
 		Color:          color.NRGBA{R: 181, G: 161, B: 242, A: 255},
-		ParticleRadius: min(3, config.Generation.MinInnerRadius-.1),
+		ParticleRadius: min(1, config.Generation.MinInnerRadius-.1),
 		InnerRadius:    config.Generation.MinInnerRadius,
 		OuterRadius:    config.Generation.MinOuterRadius,
 	})

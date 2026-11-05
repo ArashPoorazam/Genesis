@@ -34,6 +34,8 @@ go test -race ./internal/simulation ./internal/experiment
 go build -o /tmp/genesis .
 ```
 
+For audio changes, also run `go test -race ./internal/soundtrack` and the opt-in device and Sound-panel checks documented in README. Generate the water-drop cue with `python3 audio/generate_water_drop.py`; keep audition renders out of version control via `audio/.gitignore`.
+
 If the default Go build cache is read-only in a restricted workspace, prefix commands with `GOCACHE=/tmp/genesis-go-cache`.
 
 The desktop lifecycle tests are opt-in and require a working graphics display. Run them in separate processes because Ebitengine permits only one game lifecycle per process:

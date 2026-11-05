@@ -1,0 +1,10 @@
+# Keep audition renders and download bundles locally; ship only runtime assets.
+/music/
+/preview/
+/sfx/*
+!/sfx/water-drop.wav
+/*.zip
+/__pycache__/
+/handpan/music/*.wav
+/handpan/preview/
+/handpan/sfx/
