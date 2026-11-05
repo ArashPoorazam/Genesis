@@ -27,7 +27,7 @@ func Default(seed uint64) Config {
 		},
 		Generation: Generation{
 			Seed:                  seed,
-			PopulationCeiling:     300,
+			PopulationCeiling:     500,
 			RelationshipAmplitude: 1,
 			MinInnerRadius:        18,
 			MaxInnerRadius:        25,

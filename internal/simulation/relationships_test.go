@@ -9,6 +9,9 @@ import (
 func TestStartupDefaults(t *testing.T) {
 	for seed := uint64(0); seed < 100; seed++ {
 		config := Default(seed)
+		if config.Generation.PopulationCeiling != 500 {
+			t.Fatal("incorrect random population ceiling")
+		}
 		if err := config.Validate(); err != nil {
 			t.Fatal(err)
 		}

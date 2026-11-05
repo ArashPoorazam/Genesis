@@ -119,7 +119,16 @@ func TestTypeRemovalRemapsParticlesAndRelations(t *testing.T) {
 }
 
 func TestSeededRestartAndPopulationEdits(t *testing.T) {
-	controller := newTestController(t)
+	config := simulation.Default(42)
+	// More than 1,000 stationary particles catches replay of the restart RNG:
+	// every candidate would collide until the placement attempt limit is reached.
+	for index := range config.ParticleTypes {
+		config.ParticleTypes[index].Population = 250
+	}
+	controller, err := NewController(config)
+	if err != nil {
+		t.Fatal(err)
+	}
 	initial := append([]simulation.Particle(nil), controller.Simulation.Particles...)
 	for range 10 {
 		controller.Simulation.Step()

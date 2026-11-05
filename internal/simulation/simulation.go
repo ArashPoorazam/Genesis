@@ -1,5 +1,7 @@
 package simulation
 
+import "math/rand/v2"
+
 type Particle struct {
 	TypeIndex int
 	X, Y      float64
@@ -15,6 +17,7 @@ type Simulation struct {
 
 	grid         *spatialGrid
 	outerSquared []float64
+	spawnRandom  *rand.Rand
 }
 
 func New(config Config) (*Simulation, string, error) {
@@ -59,12 +62,17 @@ func (world *Simulation) Apply(config Config) (string, error) {
 		counts = world.retainParticles(config)
 	}
 	world.Config = config.Clone()
+	if previous.Generation.Seed != config.Generation.Seed {
+		world.spawnRandom = newRandomSource(config.Generation.Seed, spawnStream)
+	}
 
 	if geometryChanged(previous, config) {
 		world.rebuildGeometry()
 	}
 	if populationChanged {
-		return world.populate(counts, newRandomSource(config.Generation.Seed, spawnStream)), nil
+		// Continue past candidates used by restart and earlier population edits.
+		// Replaying them can exhaust placement attempts against existing particles.
+		return world.populate(counts, world.spawnRandom), nil
 	}
 
 	return "", nil

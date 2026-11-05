@@ -11,9 +11,9 @@ const maxPlacementAttempts = 1000
 func (world *Simulation) Restart() string {
 	world.Particles = world.Particles[:0]
 	counts := make([]int, len(world.Config.ParticleTypes))
-	random := newRandomSource(world.Config.Generation.Seed, spawnStream)
+	world.spawnRandom = newRandomSource(world.Config.Generation.Seed, spawnStream)
 
-	return world.populate(counts, random)
+	return world.populate(counts, world.spawnRandom)
 }
 
 func (world *Simulation) populate(counts []int, random *rand.Rand) string {
