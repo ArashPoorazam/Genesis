@@ -36,7 +36,7 @@ The logo welcome screen opens with **press anything to continue...**; a key, mou
 - **Restart particles:** regenerates positions and initial velocities from the current setup and seed.
 - **New world:** chooses a new seed and generates relationships, influence radii, populations, and positions for the current particle types.
 
-Startup defaults use relationship values from −1 to +1, inner repulsion strength 5, particle radius 1.5, inner influence radii randomly chosen from 18–25, and fixed outer influence radii evenly spaced at interval midpoints between 40 and 120 (48, 64, 80, 96, 112 for the default five types). The random population ceiling is 500 per type (generated populations range from 0 to 499). Particle glow defaults to off. World generation uses the same lock-aware relationship shuffle. Outer radii use the midpoint of each equal interval in type order: four types with bounds 80–120 receive 85, 95, 105, and 115. Inner radii and populations remain random. Existing presets retain their saved values.
+Startup defaults use relationship values from −1 to +1, inner repulsion strength 5, particle radius 1.5, fixed inner influence radii at interval midpoints between 18 and 25 (18.7, 20.1, 21.5, 22.9, 24.3 for five types), and fixed outer influence radii evenly spaced at interval midpoints between 40 and 120 (48, 64, 80, 96, 112 for the default five types). The random population ceiling is 500 per type (generated populations range from 1 to 500, subject to the 5,000 total limit). Particle glow defaults to off. World generation uses the same lock-aware relationship shuffle. Both inner and outer radii use the midpoint of each equal interval in type order: four types with bounds 80–120 receive 85, 95, 105, and 115. Populations remain random, with at least one reserved for every type, including newly added colors. Spawning alternates between types so earlier colors do not fill all available space first; insufficient space is still reported. Existing presets retain their saved values.
 
 The world uses wrapped boundaries. Window size, UI scale, and inspector visibility affect only presentation, not world dimensions or physics. Positions map across the full available width and height without letterboxing or cropping. Particle markers remain circular; influence previews follow the horizontal and vertical world scales.
 
@@ -122,6 +122,12 @@ An opt-in integration test runs the actual desktop widget lifecycle, using tempo
 
 ```sh
 GENESIS_UI_TEST=1 go test ./internal/desktop -run TestDesktopWorkflow -count=1 -v
+```
+
+Verify that adding a color and choosing New world populates every type and spaces both influence radii correctly:
+
+```sh
+GENESIS_WORLD_UI_TEST=1 go test ./internal/desktop -run '^TestDesktopNewWorldIncludesAddedColor$' -count=1 -v
 ```
 
 Verify save, overwrite, and exit flows separately (including failed saves):

@@ -19,7 +19,7 @@ func TestStartupDefaults(t *testing.T) {
 			t.Fatal("incorrect startup defaults")
 		}
 		for _, particleType := range config.ParticleTypes {
-			if particleType.Population < 0 || particleType.Population >= 500 {
+			if particleType.Population < 1 || particleType.Population > 500 {
 				t.Fatal("population outside default ceiling")
 			}
 			if particleType.ParticleRadius != 1.5 || particleType.InnerRadius < 18 || particleType.InnerRadius >= 25 || particleType.OuterRadius < 40 || particleType.OuterRadius >= 120 {

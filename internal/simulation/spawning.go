@@ -27,13 +27,30 @@ func (world *Simulation) populate(counts []int, random *rand.Rand) string {
 	spawnGrid := newGrid(world.Config.WorldWidth, world.Config.WorldHeight, cellRadius)
 	spawnGrid.rebuild(world.Particles)
 
-	for typeIndex, particleType := range world.Config.ParticleTypes {
-		for counts[typeIndex] < particleType.Population {
+	// Interleave placement so a large early population cannot consume all the
+	// available space before newly added colors get their first attempt.
+	blocked := make([]bool, len(counts))
+	spaceExhausted := false
+	for {
+		placed := false
+		for typeIndex, particleType := range world.Config.ParticleTypes {
+			if blocked[typeIndex] || counts[typeIndex] >= particleType.Population {
+				continue
+			}
 			if !world.placeParticle(typeIndex, random, spawnGrid) {
-				return fmt.Sprintf("Spawn space exhausted: %d particles placed. Reduce population or spacing.", len(world.Particles))
+				blocked[typeIndex] = true
+				spaceExhausted = true
+				continue
 			}
 			counts[typeIndex]++
+			placed = true
 		}
+		if !placed {
+			break
+		}
+	}
+	if spaceExhausted {
+		return fmt.Sprintf("Spawn space exhausted: %d particles placed. Reduce population or spacing.", len(world.Particles))
 	}
 
 	return ""

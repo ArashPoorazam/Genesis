@@ -111,7 +111,7 @@ func (view *Window) buildGenerationSettings(content *widget.Container, width int
 	})
 	view.addNumberControl(content, 0, 130, width, numericSetting{
 		Title:   "Random population ceiling",
-		Hint:    "New world chooses 0 up to this ceiling, exclusive.",
+		Hint:    "New world chooses 1 up to this ceiling per type.",
 		Value:   float64(config.Generation.PopulationCeiling),
 		Read:    func(config simulation.Config) float64 { return float64(config.Generation.PopulationCeiling) },
 		Minimum: 1,

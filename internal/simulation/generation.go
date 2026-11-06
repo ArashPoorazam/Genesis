@@ -83,14 +83,18 @@ func (config *Config) RandomizeWorld(seed uint64) {
 	random := newRandomSource(seed, worldStream)
 	settings := config.Generation
 	remainingPopulation := MaxParticles
+	innerInterval := (settings.MaxInnerRadius - settings.MinInnerRadius) / float64(len(config.ParticleTypes))
 	outerInterval := (settings.MaxOuterRadius - settings.MinOuterRadius) / float64(len(config.ParticleTypes))
 
 	for index := range config.ParticleTypes {
 		particleType := &config.ParticleTypes[index]
-		particleType.InnerRadius = settings.MinInnerRadius + random.Float64()*(settings.MaxInnerRadius-settings.MinInnerRadius)
 		// Each type gets the midpoint of one equal interval, in type order.
+		particleType.InnerRadius = settings.MinInnerRadius + (float64(index)+.5)*innerInterval
 		particleType.OuterRadius = settings.MinOuterRadius + (float64(index)+.5)*outerInterval
-		particleType.Population = min(random.IntN(settings.PopulationCeiling), remainingPopulation)
+		// Reserve at least one particle for every remaining color, including
+		// newly added types at the end of the list.
+		remainingTypes := len(config.ParticleTypes) - index - 1
+		particleType.Population = min(1+random.IntN(settings.PopulationCeiling), remainingPopulation-remainingTypes)
 		remainingPopulation -= particleType.Population
 	}
 }

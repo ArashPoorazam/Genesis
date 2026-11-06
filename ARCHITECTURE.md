@@ -17,9 +17,9 @@ This is a single-process, single-window application. The controller, simulation,
 `internal/simulation` has no windowing or filesystem dependency.
 
 - `config.go` defines the saved model; `validation.go` owns its invariants.
-- `generation.go` constructs types and random rules with independent seeded random streams. Outer radii use deterministic equal-interval midpoints between the configured bounds, assigned in type order; inner radii and populations remain seeded random values. Startup generates these values after resolving the requested type count.
+- `generation.go` constructs types and random rules with independent seeded random streams. Inner and outer radii use deterministic equal-interval midpoints between their respective configured bounds, assigned in type order. Populations remain seeded random values from one through the configured ceiling, reserving at least one for every remaining type within the total limit. Startup generates these values after resolving the requested type count.
 - `simulation.go` applies validated configurations, retaining particles by stable type ID and rebuilding derived geometry only when necessary.
-- `spawning.go` handles population changes and bounded placement attempts.
+- `spawning.go` handles population changes and bounded placement attempts. Placement interleaves types and skips exhausted types while trying others, so newly added colors get an attempt before earlier populations fill the world.
 - `physics.go` calculates directed forces and advances a fixed step. `grid.go` limits neighbor searches and handles wrapped coordinates.
 
 A type's `ID` is stable; a particle's `TypeIndex` is a dense runtime array index. The matrix row responds to the column. Influence radii belong to the influencing column type. Keep these conventions consistent when adding features.
