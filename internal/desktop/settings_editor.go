@@ -30,7 +30,7 @@ func (view *Window) buildSettings(x, y, width, height int) {
 			view.requestRebuild()
 		})
 	}
-	heights := []int{390, 480, 518, 410, 420}
+	heights := []int{470, 480, 518, 410, 420}
 	content := view.addScrollArea(view.inspectorContainer, x, y+92, width, height-92, heights[view.settingsSection])
 	width -= 24
 	switch view.settingsSection {
@@ -87,6 +87,8 @@ func (view *Window) buildMotionSettings(content *widget.Container, width int) {
 			config.Motion.RepulsionStrength = value
 		},
 	})
+	view.toggle(content, 0, 382, width, "GPU boost (experimental)", view.controller.Accelerator != nil, view.setGPUBoost)
+	view.addLabel(content, 0, 428, width, "May help large or dense worlds. Lower precision\ncan change trajectories. Falls back to CPU on errors.", 11, muted)
 }
 
 func (view *Window) buildGenerationSettings(content *widget.Container, width int) {

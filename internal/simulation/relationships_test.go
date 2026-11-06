@@ -19,6 +19,9 @@ func TestStartupDefaults(t *testing.T) {
 			t.Fatal("incorrect startup defaults")
 		}
 		for _, particleType := range config.ParticleTypes {
+			if particleType.Population < 0 || particleType.Population >= 500 {
+				t.Fatal("population outside default ceiling")
+			}
 			if particleType.ParticleRadius != 1.5 || particleType.InnerRadius < 18 || particleType.InnerRadius >= 25 || particleType.OuterRadius < 40 || particleType.OuterRadius >= 120 {
 				t.Fatalf("incorrect particle defaults: %+v", particleType)
 			}
@@ -70,51 +73,37 @@ func TestRelationshipLocksSurviveEditsShuffleAndNewWorld(t *testing.T) {
 	}
 }
 
-func TestNeutralShuffleIsOccasionalDeterministicAndRespectsLocks(t *testing.T) {
+func TestShuffleIsDeterministicWithoutForcedNeutralTypes(t *testing.T) {
 	original := Default(42)
 	original.SetRelationship(0, 1, .6)
 	original.ToggleRelationshipLock(0, 1)
-	// A locked zero does not prevent this type from becoming neutral.
 	original.SetRelationship(4, 4, 0)
 	original.ToggleRelationshipLock(4, 4)
-	neutralCount := 0
-	choseZeroLocked := false
 	for seed := uint64(0); seed < 500; seed++ {
 		config, repeat := original.Clone(), original.Clone()
-		neutral := config.RandomizeRelations(seed)
-		if repeat.RandomizeRelations(seed) != neutral || !reflect.DeepEqual(config, repeat) {
+		config.RandomizeRelations(seed)
+		repeat.RandomizeRelations(seed)
+		if !reflect.DeepEqual(config, repeat) {
 			t.Fatal("shuffle is not reproducible")
 		}
 		if config.Relationships[0][1] != .6 || config.Relationships[4][4] != 0 {
-			t.Fatal("neutral generation broke a lock")
+			t.Fatal("shuffle broke a lock")
 		}
-		if neutral < 0 {
-			continue
-		}
-		neutralCount++
-		if neutral == 0 || neutral == 1 {
-			t.Fatal("selected a type with a locked nonzero connection")
-		}
-		choseZeroLocked = choseZeroLocked || neutral == 4
-		for other := range config.ParticleTypes {
-			if config.Relationships[neutral][other] != 0 || config.Relationships[other][neutral] != 0 {
-				t.Fatal("neutral type is not zero in both directions")
+		for row, strengths := range config.Relationships {
+			for column, strength := range strengths {
+				if !config.RelationshipLocked(row, column) && strength == 0 {
+					t.Fatalf("seed %d forced unlocked cell (%d,%d) to zero", seed, row, column)
+				}
 			}
 		}
 	}
-	if neutralCount < 50 || neutralCount > 150 || !choseZeroLocked {
-		t.Fatalf("unexpected neutral selection over 500 seeds: %d; zero lock selected=%t", neutralCount, choseZeroLocked)
-	}
-	for index := range original.ParticleTypes {
-		if original.RelationshipLocked(index, index) {
-			original.ToggleRelationshipLock(index, index)
-		}
-		original.SetRelationship(index, index, .8)
-		original.ToggleRelationshipLock(index, index)
-	}
-	for seed := uint64(0); seed < 100; seed++ {
-		if original.RandomizeRelations(seed) >= 0 {
-			t.Fatal("neutralized a type despite conflicting locks on every type")
+	original.Generation.RelationshipAmplitude = 0
+	original.RandomizeRelations(42)
+	for row, strengths := range original.Relationships {
+		for column, strength := range strengths {
+			if !original.RelationshipLocked(row, column) && strength != 0 {
+				t.Fatal("zero amplitude should still allow intentionally neutral relationships")
+			}
 		}
 	}
 }

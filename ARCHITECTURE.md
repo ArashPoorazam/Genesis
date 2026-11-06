@@ -4,6 +4,7 @@ Genesis separates simulation rules, experiment operations, and desktop presentat
 
 ```text
 desktop → experiment → simulation
+   └────→ gpuphysics ──→ simulation
    └────────────────→ simulation configuration types
 ```
 
@@ -16,7 +17,7 @@ This is a single-process, single-window application. The controller, simulation,
 `internal/simulation` has no windowing or filesystem dependency.
 
 - `config.go` defines the saved model; `validation.go` owns its invariants.
-- `generation.go` constructs types and random rules with independent seeded random streams.
+- `generation.go` constructs types and random rules with independent seeded random streams. Outer radii use deterministic equal-interval midpoints between the configured bounds, assigned in type order; inner radii and populations remain seeded random values. Startup generates these values after resolving the requested type count.
 - `simulation.go` applies validated configurations, retaining particles by stable type ID and rebuilding derived geometry only when necessary.
 - `spawning.go` handles population changes and bounded placement attempts.
 - `physics.go` calculates directed forces and advances a fixed step. `grid.go` limits neighbor searches and handles wrapped coordinates.
@@ -39,7 +40,19 @@ The grid caps each axis at 128 cells. Its cell-head and neighbor tables occupy a
 
 Forces use the shortest wrapped displacement. Inner-zone repulsion is independent of relationships; the outer zone has a triangular force profile. Every velocity is computed before any position moves, so all particles read the same position snapshot. Physics tests retain the historical loop comparison and check grid candidates against an independent all-pairs search.
 
-Relationship locks are an optional square matrix in the configuration. Missing locks in older presets mean all cells are editable. Cloning, type addition/removal, presets, and history preserve the lock matrix. Manual, reciprocal, clear, and random edits use `SetRelationship` to honor locks. Neutral-type selection uses its own seeded random stream and excludes types with any locked nonzero incoming or outgoing connection. Loading another preset and explicit undo/redo restore their complete configurations, including locks.
+`Step` rebuilds the grid synchronously, then partitions velocity updates across at most eight workers, bounded by `GOMAXPROCS` and one worker per 256 particles. Fewer than two workers uses the serial path. Each worker owns a disjoint range of velocities and reads only positions and types of other particles; do not copy whole particles or read their velocities inside the neighbor loop. All workers finish before positions move or `Step` returns. Neighbor traversal and floating-point accumulation order remain unchanged for each particle. The public simulation API still requires single-goroutine use; no workers survive a step or require shutdown.
+
+### Optional GPU physics
+
+`VelocityAccelerator` consumes a borrowed read-only snapshot of configuration, particles, and the existing spatial grid, writing a separate velocity buffer. `StepWithAccelerator` validates the entire buffer before committing it. Failure completes the same step on the CPU with unchanged input and returns an error. `Controller.Step` disables a failed accelerator and reports CPU fallback. Playback, toolbar stepping, and keyboard stepping all use this entry point. The desktop owns graphics resources; simulation has no Ebitengine dependency.
+
+`gpuphysics` uses an embedded Kage fragment shader and three unmanaged 256 × 128 RGBA8 textures. Input holds five pixels per particle: two positions, two velocities, and next-index/type metadata. Another texture stores cell heads followed by each particle's exact CPU cell, avoiding quantization-induced changes to neighbor selection. The shader traverses the same wrapped lists and explicitly excludes self interaction. Packed coordinate differences are wrapped before scaling to avoid cancellation at large-world seams. Two output pixels hold each particle's velocity components.
+
+Positions use 24-bit normalized fixed-point encoding; velocities have a 1/131072 unit increment. The shader applies retention and the speed cap; readback enforces the cap again after component rounding. Arithmetic precision is device-dependent and trajectories may diverge from CPU execution. Activation checks an isolated moving particle and an interacting seeded world against CPU results. This checks compatibility, not numerical equivalence for every configuration.
+
+Each accelerated step uploads current state and reads back velocities synchronously. CPU-owned positions advance once after validation, keeping edits, undo, loading, restart, influence previews, and rendering coherent. Textures and buffers are reused, and performance tests include transfers. GPU selection is session-only, defaults off, and uses Ebitengine's graphics device without CUDA or additional native bindings.
+
+Relationship locks are an optional square matrix in the configuration. Missing locks in older presets mean all cells are editable. Cloning, type addition/removal, presets, and history preserve the lock matrix. Manual, reciprocal, clear, and random edits use `SetRelationship` to honor locks. No shuffle step forces an entire type to zero. Loading another preset and explicit undo/redo restore their complete configurations, including locks.
 
 ## Experiment operations
 
@@ -86,5 +99,7 @@ Dialog content replaces the active widget tree, preventing input from reaching c
 - Keep physics and persistence tests independent of graphics. Use the opt-in desktop workflow test for widget wiring and manual screenshots for visual layout.
 
 The physics benchmark compares the original loop with runtime settings on the same seeded population and repeated evolution window. It measures physics cost only, not rendering or UI throughput.
+
+`BenchmarkPhysicsScaling` compares serial and automatic execution for 128, 512, 1,500, and 5,000 particles, both spread through the world and clustered across its seams. Each iteration restores the same positions and velocities so different iteration counts cannot bias density; both timings include the snapshot copy. Run repeated samples without concurrent tests or builds. Exact-state regression tests cover one, two, four, and eight CPU execution limits, rule and geometry edits, and population changes across the parallel threshold.
 
 `BenchmarkRelationshipEdit` measures `Simulation.Apply` with zero and 5,000 particles to catch accidental per-particle work in ordinary edits. It excludes controller history and rendering. See [CONTRIBUTING.md](CONTRIBUTING.md) for verification commands and guidance on extending the code.

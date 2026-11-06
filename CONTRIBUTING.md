@@ -50,7 +50,7 @@ The workflow covers relationship locks, live edits, history, population changes,
 For physics or live-edit performance changes, compare repeated samples on the same machine without competing tests or builds:
 
 ```sh
-go test ./internal/simulation -run '^$' -bench 'Benchmark(Physics|RelationshipEdit)$' -benchmem -count=3
+go test ./internal/simulation -run '^$' -bench 'Benchmark(Physics|PhysicsScaling|RelationshipEdit)$' -benchmem -count=3
 ```
 
 Physics measures a fixed evolution window. Relationship edits compare zero and 5,000 particles. Neither benchmark measures end-to-end desktop frame time. Use the separate paused-renderer measurement for rendering changes:
@@ -58,5 +58,7 @@ Physics measures a fixed evolution window. Relationship edits compare zero and 5
 ```sh
 GENESIS_PERF_TEST=1 go test ./internal/desktop -run '^TestDesktopPerformance$' -count=1 -v
 ```
+
+For GPU changes, run `TestGPUPhysics` and `TestDesktopGPU` using README's opt-in commands, separately on each available graphics device. Include transfers and readback in timings. Cover self/coincident particles, wrapped grids, half-world ties, maximum grid size, speed/retention boundaries, all 12 types, and live edits. GPU comparisons use explicit tolerances; CPU parallelism must still match serial results exactly. Failed, incomplete, or invalid acceleration results must never partially update live particles.
 
 Prefer regression tests for observable behavior: invalid edits preserve state, world resizing preserves velocity, type reordering preserves identity, wrapped searches include every nearby pair exactly once, and failed saves preserve the readable preset. Avoid tests that only duplicate implementation details or formatting.

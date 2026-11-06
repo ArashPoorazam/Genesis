@@ -29,6 +29,7 @@ type Options struct {
 	SkipIntro      bool
 	OpenInspector  bool
 	Mute           bool
+	GPUBoost       bool
 }
 
 func Run(options Options) error {
@@ -46,6 +47,7 @@ func Run(options Options) error {
 	}
 	view.startAudio(options)
 	defer view.closeAudio()
+	defer view.closeGPU()
 
 	ebiten.SetWindowSize(options.Width, options.Height)
 	ebiten.SetWindowSizeLimits(1024, 768, -1, -1)
@@ -84,25 +86,26 @@ func newWindow(options Options) (*Window, error) {
 	}
 
 	return &Window{
-		audioPreferences: experiment.DefaultAudioPreferences(),
-		sound:            soundtrack.New(experiment.DefaultAudioPreferences()),
-		controller:       controller,
-		store:            store,
-		font:             font,
-		fontFaces:        make(map[float64]text.Face),
-		ui:               &ebitenui.UI{},
-		scale:            max(1, min(1.5, options.UIScale)),
-		inspectorVisible: options.OpenInspector || options.ExpandMatrix,
-		introVisible:     !options.SkipIntro,
-		logo:             ebiten.NewImageFromImage(logo),
-		atomSticker:      ebiten.NewImageFromImage(sticker),
-		scrollPositions:  make(map[string]float64),
-		glowEnabled:      false,
-		showPerformance:  true,
-		needsRebuild:     true,
-		activeTab:        max(relationshipsTab, min(settingsTab, options.InitialTab)),
-		matrixExpanded:   options.ExpandMatrix,
-		sprites:          make(map[string]particleSprite),
+		audioPreferences:  experiment.DefaultAudioPreferences(),
+		sound:             soundtrack.New(experiment.DefaultAudioPreferences()),
+		controller:        controller,
+		gpuBoostRequested: options.GPUBoost,
+		store:             store,
+		font:              font,
+		fontFaces:         make(map[float64]text.Face),
+		ui:                &ebitenui.UI{},
+		scale:             max(1, min(1.5, options.UIScale)),
+		inspectorVisible:  options.OpenInspector || options.ExpandMatrix,
+		introVisible:      !options.SkipIntro,
+		logo:              ebiten.NewImageFromImage(logo),
+		atomSticker:       ebiten.NewImageFromImage(sticker),
+		scrollPositions:   make(map[string]float64),
+		glowEnabled:       false,
+		showPerformance:   true,
+		needsRebuild:      true,
+		activeTab:         max(relationshipsTab, min(settingsTab, options.InitialTab)),
+		matrixExpanded:    options.ExpandMatrix,
+		sprites:           make(map[string]particleSprite),
 		capture: captureOptions{
 			path:       options.ScreenshotPath,
 			width:      options.Width,
@@ -130,5 +133,8 @@ func initialConfig(options Options) (simulation.Config, error) {
 		}
 	}
 
+	// Generate radii for the final type count rather than retaining the default
+	// five-type spacing after command-line additions or removals.
+	config.RandomizeWorld(options.Seed)
 	return config, nil
 }

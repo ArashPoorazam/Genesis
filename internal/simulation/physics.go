@@ -1,6 +1,10 @@
 package simulation
 
-import "math"
+import (
+	"math"
+	"runtime"
+	"sync"
+)
 
 // Force returns the signed radial force: negative repels and positive attracts.
 // Inside the inner radius, repulsion is independent of the relationship. Between
@@ -21,19 +25,33 @@ func Force(distance, innerRadius, outerRadius, relationship, repulsion float64) 
 
 // Step advances one fixed physics interval. Playback speed changes how often it runs.
 func (world *Simulation) Step() {
-	world.grid.rebuild(world.Particles)
+	_ = world.StepWithAccelerator(nil)
+}
 
-	// Forces read positions, not velocities. Finish every velocity update before
-	// moving particles so iteration order cannot change the positions being read.
-	for index := range world.Particles {
-		world.applyInfluence(&world.Particles[index])
+func (world *Simulation) updateVelocities() {
+	// Small worlds do not amortize goroutine scheduling. Limit concurrency to
+	// avoid oversubscribing machines with many logical CPUs.
+	workers := min(runtime.GOMAXPROCS(0), 8, len(world.Particles)/256)
+	if workers < 2 {
+		for index := range world.Particles {
+			world.applyInfluence(&world.Particles[index])
+		}
+		return
 	}
 
-	for index := range world.Particles {
-		particle := &world.Particles[index]
-		particle.X = wrap(particle.X+particle.VX, world.Config.WorldWidth)
-		particle.Y = wrap(particle.Y+particle.VY, world.Config.WorldHeight)
+	var finished sync.WaitGroup
+	for worker := range workers {
+		start := worker * len(world.Particles) / workers
+		end := (worker + 1) * len(world.Particles) / workers
+		finished.Go(func() {
+			// Each worker writes only its own velocities. Positions, types,
+			// configuration, and the completed grid remain read-only.
+			for index := start; index < end; index++ {
+				world.applyInfluence(&world.Particles[index])
+			}
+		})
 	}
+	finished.Wait()
 }
 
 func (world *Simulation) applyInfluence(particle *Particle) {

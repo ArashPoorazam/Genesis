@@ -12,7 +12,6 @@ const (
 	relationshipStream = 1
 	worldStream        = 2
 	spawnStream        = 3
-	neutralStream      = 4
 )
 
 func Default(seed uint64) Config {
@@ -66,8 +65,8 @@ func newRandomSource(seed, stream uint64) *rand.Rand {
 	return rand.New(rand.NewPCG(seed, stream))
 }
 
-// RandomizeRelations returns the neutral type, or -1 when none was selected.
-func (config *Config) RandomizeRelations(seed uint64) int {
+// RandomizeRelations independently shuffles unlocked cells within the amplitude.
+func (config *Config) RandomizeRelations(seed uint64) {
 	random := newRandomSource(seed, relationshipStream)
 
 	for row := range config.Relationships {
@@ -75,25 +74,6 @@ func (config *Config) RandomizeRelations(seed uint64) int {
 			config.SetRelationship(row, column, (random.Float64()*2-1)*config.Generation.RelationshipAmplitude)
 		}
 	}
-	neutralRandom := newRandomSource(seed, neutralStream)
-	if neutralRandom.IntN(5) != 0 {
-		return -1
-	}
-	candidates := make([]int, 0, len(config.ParticleTypes))
-	for index := range config.ParticleTypes {
-		if config.canNeutralize(index) {
-			candidates = append(candidates, index)
-		}
-	}
-	if len(candidates) == 0 {
-		return -1
-	}
-	neutral := candidates[neutralRandom.IntN(len(candidates))]
-	for other := range config.ParticleTypes {
-		config.SetRelationship(neutral, other, 0)
-		config.SetRelationship(other, neutral, 0)
-	}
-	return neutral
 }
 
 func (config *Config) RandomizeWorld(seed uint64) {
@@ -103,11 +83,13 @@ func (config *Config) RandomizeWorld(seed uint64) {
 	random := newRandomSource(seed, worldStream)
 	settings := config.Generation
 	remainingPopulation := MaxParticles
+	outerInterval := (settings.MaxOuterRadius - settings.MinOuterRadius) / float64(len(config.ParticleTypes))
 
 	for index := range config.ParticleTypes {
 		particleType := &config.ParticleTypes[index]
 		particleType.InnerRadius = settings.MinInnerRadius + random.Float64()*(settings.MaxInnerRadius-settings.MinInnerRadius)
-		particleType.OuterRadius = settings.MinOuterRadius + random.Float64()*(settings.MaxOuterRadius-settings.MinOuterRadius)
+		// Each type gets the midpoint of one equal interval, in type order.
+		particleType.OuterRadius = settings.MinOuterRadius + (float64(index)+.5)*outerInterval
 		particleType.Population = min(random.IntN(settings.PopulationCeiling), remainingPopulation)
 		remainingPopulation -= particleType.Population
 	}

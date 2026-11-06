@@ -22,17 +22,3 @@ func (config *Config) SetRelationship(row, column int, strength float64) {
 		config.Relationships[row][column] = strength
 	}
 }
-
-// A neutral type needs zero in both directions, including its own cell. A
-// nonzero locked connection disqualifies it; existing zero locks are compatible.
-func (config Config) canNeutralize(particleType int) bool {
-	for other := range config.ParticleTypes {
-		if config.RelationshipLocked(particleType, other) && config.Relationships[particleType][other] != 0 {
-			return false
-		}
-		if config.RelationshipLocked(other, particleType) && config.Relationships[other][particleType] != 0 {
-			return false
-		}
-	}
-	return true
-}

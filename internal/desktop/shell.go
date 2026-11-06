@@ -171,7 +171,7 @@ func (view *Window) buildPlayback() {
 	play := view.addButton(view.rootContainer, x, y, 68, "", true, view.togglePlayback)
 	step := view.addButton(view.rootContainer, x+76, y, 56, "Step", false, func() {
 		if view.controller.Paused {
-			view.controller.Simulation.Step()
+			view.controller.Step()
 		}
 	})
 	view.refreshBindings = append(view.refreshBindings, func() {

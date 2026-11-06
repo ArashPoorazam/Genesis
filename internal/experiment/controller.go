@@ -11,11 +11,12 @@ const historyLimit = 100
 
 // Controller owns configuration history. History never snapshots simulation time.
 type Controller struct {
-	Simulation *simulation.Simulation
-	Paused     bool
-	Speed      float64
-	Message    string
-	Name       string
+	Simulation  *simulation.Simulation
+	Paused      bool
+	Speed       float64
+	Message     string
+	Name        string
+	Accelerator simulation.VelocityAccelerator
 
 	baseline    simulation.Config
 	undo        []simulation.Config
@@ -168,7 +169,16 @@ func (controller *Controller) Tick() {
 
 	controller.accumulator += controller.Speed
 	for controller.accumulator >= 1 {
-		controller.Simulation.Step()
+		controller.Step()
 		controller.accumulator--
+	}
+}
+
+// Step also serves paused single-step playback. An accelerator failure completes
+// this step on CPU and disables acceleration for subsequent steps and loads.
+func (controller *Controller) Step() {
+	if err := controller.Simulation.StepWithAccelerator(controller.Accelerator); err != nil {
+		controller.Accelerator = nil
+		controller.Message = "Physics acceleration unavailable; using CPU: " + err.Error()
 	}
 }

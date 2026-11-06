@@ -10,7 +10,8 @@ type Particle struct {
 
 // Simulation owns validated configuration and its derived physics state.
 // Callers may read Config and Particles; configuration changes must go through Apply.
-// Like the desktop frame loop, this type is intended for single-goroutine use.
+// Callers must use this type from one goroutine. Step joins its internal physics
+// workers before returning, so subsequent reads and edits remain synchronous.
 type Simulation struct {
 	Config    Config
 	Particles []Particle
@@ -18,6 +19,7 @@ type Simulation struct {
 	grid         *spatialGrid
 	outerSquared []float64
 	spawnRandom  *rand.Rand
+	accelerated  []Velocity
 }
 
 func New(config Config) (*Simulation, string, error) {

@@ -169,18 +169,14 @@ func (view *Window) buildRelationshipControls(x, editorY, width int) {
 	}
 	x, width = cardX, cardWidth
 	view.addButton(view.inspectorContainer, x, editorY+212, width-108, "Shuffle relationships", true, func() {
-		neutral := -1
 		if err := view.editConfig(func(config *simulation.Config) error {
-			neutral = config.RandomizeRelations(rand.Uint64())
+			config.RandomizeRelations(rand.Uint64())
 			return nil
 		}); err != nil {
 			return
 		}
 		view.status = "Relationships shuffled · Locked cells kept"
 		view.sound.Queue(soundtrack.Shuffle)
-		if neutral >= 0 {
-			view.status += " · " + view.controller.Simulation.Config.ParticleTypes[neutral].Name + " is neutral"
-		}
 		view.requestRebuild()
 	})
 	view.addButton(view.inspectorContainer, x+width-100, editorY+212, 100, "Zero all", false, func() {

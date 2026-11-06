@@ -1,0 +1,98 @@
+//go:build ignore
+
+//kage:unit pixels
+
+package main
+
+var Count int
+var World vec2
+var Grid ivec2
+var Radii [12]vec2
+var Rules [144]float
+var Motion vec3 // retention, speed limit, repulsion
+
+func address(index int) vec2 {
+	return vec2(float(index%256)+0.5, float(index/256)+0.5)
+}
+
+func unpack(pixel vec4) float {
+	return dot(floor(pixel.rgb*255+0.5), vec3(1, 256, 65536))
+}
+
+func state(index int) vec4 {
+	return imageSrc0UnsafeAt(address(index))
+}
+
+func position(index int) vec2 {
+	return vec2(unpack(state(index*5)), unpack(state(index*5+1)))
+}
+
+func metadata(index int) ivec3 {
+	return ivec3(floor(state(index*5+4).rgb*255 + 0.5))
+}
+
+func packVelocity(value float) vec4 {
+	n := clamp(floor(value*131072+0.5)+8388608, 0, 16777215)
+	return vec4(mod(n, 256), mod(floor(n/256), 256), floor(n/65536), 255) / 255
+}
+
+func Fragment(dst vec4, src vec2, color vec4) vec4 {
+	slot := int(dst.x) + int(dst.y)*256
+	particle := slot / 2
+	if particle >= Count {
+		return vec4(0)
+	}
+	pos := position(particle)
+	kind := metadata(particle).z
+	velocity := (vec2(unpack(state(particle*5+2)), unpack(state(particle*5+3))) - 8388608) / 131072
+	// The CPU stores the exact cell for each particle in the grid texture after
+	// its heads. Quantization must never move a particle to a different cell.
+	cell := int(unpack(imageSrc1UnsafeAt(address(Grid.x*Grid.y + particle))))
+	column, row := cell%Grid.x, cell/Grid.x
+	for dy := 0; dy < 3; dy++ {
+		if dy >= Grid.y {
+			break
+		}
+		for dx := 0; dx < 3; dx++ {
+			if dx >= Grid.x {
+				break
+			}
+			neighbor := ((row+dy-1+Grid.y)%Grid.y)*Grid.x + (column+dx-1+Grid.x)%Grid.x
+			other := int(unpack(imageSrc1UnsafeAt(address(neighbor)))) - 1
+			for visit := 0; visit < 5000; visit++ {
+				if other < 0 {
+					break
+				}
+				info := metadata(other)
+				// Subtract exact packed coordinates before scaling. Some drivers fuse the
+				// scaled subtraction differently and produce a nonzero self displacement.
+				delta := position(other) - pos
+				// math.Round's ties go away from zero, including at half the world size.
+				// Wrap before scaling to avoid cancellation near large-world seams.
+				delta -= 16777216 * sign(delta) * floor(abs(delta)/16777216+0.5)
+				delta = delta / 16777216 * World
+				distanceSquared := dot(delta, delta)
+				radii := Radii[info.z]
+				if other != particle && distanceSquared > 0 && distanceSquared < radii.y*radii.y {
+					distance := sqrt(distanceSquared)
+					force := -Motion.z * (1 - distance/radii.x)
+					if distance >= radii.x {
+						progress := (distance - radii.x) / (radii.y - radii.x)
+						force = Rules[kind*12+info.z] * (1 - abs(2*progress-1))
+					}
+					velocity += delta / distance * force
+				}
+				other = info.x + info.y*256 - 1
+			}
+		}
+	}
+	velocity *= Motion.x
+	speedSquared := dot(velocity, velocity)
+	if speedSquared > Motion.y*Motion.y {
+		velocity *= Motion.y / sqrt(speedSquared)
+	}
+	if slot%2 == 0 {
+		return packVelocity(velocity.x)
+	}
+	return packVelocity(velocity.y)
+}

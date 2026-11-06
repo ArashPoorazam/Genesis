@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ArashPoorazam/Genesis/internal/experiment"
+	"github.com/ArashPoorazam/Genesis/internal/gpuphysics"
 	"github.com/ArashPoorazam/Genesis/internal/simulation"
 	"github.com/ArashPoorazam/Genesis/internal/soundtrack"
 	"github.com/ebitenui/ebitenui"
@@ -33,6 +34,8 @@ type Window struct {
 	audioPreferencesPath string
 	audioSaveAt          time.Time
 	audioDisabled        bool
+	gpuEngine            *gpuphysics.Engine
+	gpuBoostRequested    bool
 
 	width                   int
 	height                  int
@@ -124,6 +127,10 @@ func (view *Window) Update() error {
 		return nil
 	}
 	view.introFade = max(0, view.introFade-.055)
+	if view.gpuBoostRequested {
+		view.gpuBoostRequested = false
+		view.setGPUBoost(true)
+	}
 
 	if view.needsRebuild {
 		view.buildUI()
@@ -155,6 +162,10 @@ func (view *Window) Update() error {
 		view.controller.Tick()
 	} else if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		view.cancelDialog()
+	}
+	if view.gpuEngine != nil && view.controller.Accelerator == nil {
+		view.closeGPU()
+		view.requestRebuild()
 	}
 
 	// A structural edit invalidates old bindings until the next rebuild.
@@ -222,7 +233,7 @@ func (view *Window) handleShortcuts() {
 		view.togglePlayback()
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyPeriod) && view.controller.Paused {
-		view.controller.Simulation.Step()
+		view.controller.Step()
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyF11) {
 		ebiten.SetFullscreen(!ebiten.IsFullscreen())

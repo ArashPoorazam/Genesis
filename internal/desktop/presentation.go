@@ -219,7 +219,7 @@ func (view *Window) updateTooltip() {
 		case "Zero cell", "Zero all":
 			caption = "Clear attraction / repulsion; inner repulsion stays active"
 		case "Shuffle relationships":
-			caption = "Keep locked cells · 20% chance of one neutral type"
+			caption = "Randomize unlocked relationships · Keep locked cells"
 		case "Save":
 			caption = "Save preset · Ctrl+S"
 		case "Undo":

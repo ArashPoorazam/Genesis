@@ -32,13 +32,31 @@ The logo welcome screen opens with **press anything to continue...**; a key, mou
 - **Particles:** add up to 12 types, edit names and colors, adjust radii, and explicitly commit population changes. Existing particles retain their motion when possible. The total population limit is 5,000.
 - **Settings:** compact Motion, Spawn, Ranges, Display, and Sound sections organize live physics, generation, randomization, appearance, and audio. Numeric text fields commit on Enter or focus loss; invalid values show inline errors. Sliders and number fields stay synchronized.
 - **Linked radii:** changing a particle's size or influence zones adjusts dependent radii to preserve valid spacing. Generation bounds move neighboring bounds when necessary. Physical particle size sets the lower limit, and one undo restores all changes from a slider drag.
-- **Shuffle relationships:** randomizes unlocked cells and leaves particles in place. Each shuffle has a 20% chance to make one eligible type neutral: its entire row and column become zero, including its self-relationship. A type with any locked nonzero connection is ineligible; if no type is eligible, this step is skipped. Inner repulsion remains active.
+- **Shuffle relationships:** randomizes unlocked cells independently and leaves particles in place. No particle type is automatically made neutral. Locked values are preserved; manually zeroed relationships and a zero shuffle amplitude remain supported.
 - **Restart particles:** regenerates positions and initial velocities from the current setup and seed.
 - **New world:** chooses a new seed and generates relationships, influence radii, populations, and positions for the current particle types.
 
-Startup defaults use relationship values from −1 to +1, inner repulsion strength 5, particle radius 1.5, inner influence radii randomly chosen from 18–25, and outer influence radii from 40–120. The random population ceiling is 500 per type (generated populations range from 0 to 499). Particle glow defaults to off. World generation uses the same lock-aware relationship shuffle. Existing presets retain their saved values.
+Startup defaults use relationship values from −1 to +1, inner repulsion strength 5, particle radius 1.5, inner influence radii randomly chosen from 18–25, and fixed outer influence radii evenly spaced at interval midpoints between 40 and 120 (48, 64, 80, 96, 112 for the default five types). The random population ceiling is 500 per type (generated populations range from 0 to 499). Particle glow defaults to off. World generation uses the same lock-aware relationship shuffle. Outer radii use the midpoint of each equal interval in type order: four types with bounds 80–120 receive 85, 95, 105, and 115. Inner radii and populations remain random. Existing presets retain their saved values.
 
 The world uses wrapped boundaries. Window size, UI scale, and inspector visibility affect only presentation, not world dimensions or physics. Positions map across the full available width and height without letterboxing or cropping. Particle markers remain circular; influence previews follow the horizontal and vertical world scales.
+
+Physics automatically uses multiple CPU cores for larger populations, with serial execution for small worlds or a single available core. This requires no additional drivers or dependencies and preserves the serial simulation's force accumulation order. Rendering continues to use Ebitengine's graphics backend.
+
+### GPU boost
+
+Enable **Settings → Motion → GPU boost (experimental)** for optional GPU physics, or start with `go run . -gpu`. It defaults to off and applies only to the current session, independently of presets and undo history. Playback and both single-step controls use the selected backend. GPU boost uses Ebitengine's portable Kage shaders, so CUDA and NVIDIA-specific libraries are not required. It uses the graphics device selected by Ebitengine; a hybrid laptop may use its integrated GPU by default.
+
+Activation runs a small accuracy check on the actual device. Errors returned by initialization, that check, or a velocity update fall back to CPU physics with a status message. A failed update completes once on the CPU without committing a partial GPU result, and the toggle returns to Off. Ebitengine shares the graphics backend with rendering: fatal backend errors, including driver or backend shader-compilation failures, can still terminate the application. Restart without `-gpu` in that case.
+
+GPU arithmetic and packed particle coordinates have lower precision than CPU physics. The force law and spatial-neighbor search are retained, but trajectories are not bit-for-bit reproducible across backends and can diverge over time. Small or sparse worlds can be faster on the CPU; GPU boost is most useful for large, dense populations.
+
+Local Linux checks passed on an RTX 3050 Ti Laptop GPU and Intel integrated graphics. In the 5,000-particle dense-cluster test, complete physics steps (including uploads and readback) measured approximately 31.0 → 6.5 ms on NVIDIA and 28.9 → 19.5 ms on Intel, compared with multicore CPU execution. These are median timings from synthetic snapshots, not desktop frame-rate guarantees. AMD, Windows, and macOS have not been hardware-tested.
+
+On a Linux NVIDIA hybrid system with PRIME offload configured, select the discrete graphics path with:
+
+```sh
+__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia go run . -gpu
+```
 
 ### Sound
 
@@ -97,6 +115,7 @@ go test ./...
 go vet ./...
 go test ./internal/simulation -run '^$' -bench BenchmarkPhysics -benchmem
 go test ./internal/simulation -run '^$' -bench BenchmarkRelationshipEdit -benchmem
+go test ./internal/simulation -run '^$' -bench '^BenchmarkPhysicsScaling$' -benchmem -count=3
 ```
 
 An opt-in integration test runs the actual desktop widget lifecycle, using temporary preset files:
@@ -129,6 +148,15 @@ GENESIS_PERF_TEST=1 go test ./internal/desktop -run TestDesktopPerformance -coun
 ```
 
 Set `GENESIS_PERF_SCREENSHOTS` to an existing directory to also save each layout and a comparison of font weights at 11, 13, 15, and 17 px. Run each opt-in display test separately; Ebitengine permits only one game lifecycle per process.
+
+Verify GPU execution, numerical agreement, boundaries, live edits, and complete-step timings on the active graphics device:
+
+```sh
+GENESIS_GPU_TEST=1 go test ./internal/gpuphysics -run '^TestGPUPhysics$' -count=1 -v
+GENESIS_GPU_UI_TEST=1 go test ./internal/desktop -run '^TestDesktopGPU$' -count=1 -v
+```
+
+Run these separately on each graphics device you intend to support. The UI check covers enable/disable, startup selection, load/restart, single-step playback, injected failure, CPU fallback, and retry. Set `GENESIS_GPU_SCREENSHOT` to a PNG path to capture the Motion settings. Ordinary tests compile the shader and check transactional fallback without requiring GPU physics execution.
 
 Reproducible rendering checks can capture application screenshots and exit:
 
