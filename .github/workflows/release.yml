@@ -1,0 +1,149 @@
+name: Desktop releases
+
+on:
+  pull_request:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and check ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            runner: windows-2025
+            goos: windows
+            goarch: amd64
+          - target: linux-x64
+            runner: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+          - target: macos-x64
+            runner: macos-15-intel
+            goos: darwin
+            goarch: amd64
+          - target: macos-arm64
+            runner: macos-15
+            goos: darwin
+            goarch: arm64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.13'
+      - name: Install Linux display runtime
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth libx11-6 libgl1 libglx-mesa0 libgl1-mesa-dri libxcursor1 libxi6 libxinerama1 libxrandr2 libxrender1 libxext6 libasound2t64
+      - name: Select version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_TYPE" == tag ]]; then
+            echo "VERSION=$REF_NAME" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=v0.0.0-dev.${GITHUB_SHA:0:12}" >> "$GITHUB_ENV"
+          fi
+      - name: Test and vet
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a go test ./...
+          else
+            go test ./...
+          fi
+          go vet ./...
+      - name: Race checks
+        run: go test -race ./internal/simulation ./internal/experiment
+      - name: Build release archive
+        env:
+          TARGET_OS: ${{ matrix.goos }}
+          TARGET_ARCH: ${{ matrix.goarch }}
+        run: python scripts/package_release.py --version "$VERSION" --os "$TARGET_OS" --arch "$TARGET_ARCH"
+      - name: Launch the packaged application
+        run: |
+          for archive in dist/*.zip dist/*.tar.gz; do
+            [[ -f "$archive" ]] || continue
+            if [[ "$RUNNER_OS" == Linux ]]; then
+              LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a python scripts/smoke_release.py "$archive"
+            else
+              python scripts/smoke_release.py "$archive"
+            fi
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+      - name: Verify the complete set of downloads
+        working-directory: dist
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          for target in windows-x64 macos-x64 macos-arm64; do
+            test -s "Genesis-$VERSION-$target.zip"
+            test -s "Genesis-$VERSION-$target.zip.sha256"
+          done
+          test -s "Genesis-$VERSION-linux-x64.tar.gz"
+          test -s "Genesis-$VERSION-linux-x64.tar.gz.sha256"
+          cat ./*.sha256 > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - name: Publish all assets together
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          # A draft keeps incomplete uploads out of the public download list.
+          # A rerun can finish an interrupted draft, but never replace a published release.
+          if gh release view "$VERSION" --json isDraft > release.json; then
+            jq -e '.isDraft == true' release.json
+          else
+            gh release create "$VERSION" --verify-tag --draft --generate-notes --title "Genesis $VERSION"
+          fi
+          gh release upload "$VERSION" ./*.zip ./*.tar.gz SHA256SUMS --clobber
+          if [[ "$VERSION" == *-* ]]; then
+            gh release edit "$VERSION" --draft=false --prerelease
+          else
+            gh release edit "$VERSION" --draft=false --latest
+          fi

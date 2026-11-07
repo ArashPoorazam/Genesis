@@ -28,6 +28,8 @@ go.work.sum
 # env file
 .env
 Genesis
+/dist/
+__pycache__/
 
 # Editor/IDE
 # .idea/

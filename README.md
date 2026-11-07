@@ -6,7 +6,24 @@ Genesis is a desktop particle laboratory for exploring emergence: how small enti
 
 ![Genesis Logo](images/logo.png)
 
-## Run
+## Download
+
+Download packaged builds from [GitHub Releases](https://github.com/ArashPoorazam/Genesis/releases). Download the archive for your system under **Assets**, then extract it; the automatically generated **Source code** archives are for development. Packaged builds do not require Go or an internet connection.
+
+| System | Release archive | Launch |
+| ------ | --------------- | ------ |
+| Windows x64 | `Genesis-vVERSION-windows-x64.zip` | Open `Genesis.exe` |
+| macOS Apple Silicon | `Genesis-vVERSION-macos-arm64.zip` | Drag `Genesis.app` to Applications |
+| macOS Intel | `Genesis-vVERSION-macos-x64.zip` | Drag `Genesis.app` to Applications |
+| Linux x64 | `Genesis-vVERSION-linux-x64.tar.gz` | Run `./genesis` in the extracted folder |
+
+Releases become available after a maintainer pushes a version tag and the desktop release workflow succeeds. Each release includes `SHA256SUMS`, and each archive includes launch instructions and licenses. Windows builds are unsigned. macOS bundles are ad-hoc signed, but are not Developer ID signed or notarized, so the operating system may require explicit approval to open them. Follow [Apple's instructions for opening an app from an unknown developer](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac) only for downloads you trust.
+
+Linux requires a working graphics driver, X11 or XWayland, and the graphics/audio runtime libraries listed in the [Ebitengine installation guide](https://ebitengine.org/en/documents/install.html). If needed, restore executable permission with `chmod +x genesis`. Presets and preferences remain in your user configuration directory when you update the application.
+
+Maintainers: see [RELEASING.md](RELEASING.md) for test builds, release tags, and signing limitations.
+
+## Run from source
 
 Use the Go version declared in `go.mod` and a desktop session with graphics support:
 
