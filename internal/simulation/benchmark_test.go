@@ -65,14 +65,33 @@ func TestPhysicsMatchesOriginalLoopWithOriginalMotion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for range 20 {
+	for step := range 20 {
 		current.Step()
 		legacyStep(legacy)
-	}
-	for index, particle := range current.Particles {
-		if particle != legacy.Particles[index] {
-			t.Fatalf("particle %d differs from the original physics loop", index)
+		for index, particle := range current.Particles {
+			reference := legacy.Particles[index]
+			if particle.TypeIndex != reference.TypeIndex {
+				t.Fatalf("step %d particle %d changed type", step, index)
+			}
+			// Go permits fused floating-point operations. The historical loop's
+			// constants and the runtime settings can round differently on ARM64,
+			// especially with race instrumentation. Compare each step from the same
+			// snapshot so tiny rounding differences cannot amplify across steps.
+			for _, component := range []struct {
+				name             string
+				actual, expected float64
+			}{
+				{"X", particle.X, reference.X}, {"Y", particle.Y, reference.Y},
+				{"VX", particle.VX, reference.VX}, {"VY", particle.VY, reference.VY},
+			} {
+				tolerance := 1e-12 * max(1, math.Abs(component.expected))
+				if !(math.Abs(component.actual-component.expected) <= tolerance) {
+					t.Fatalf("step %d particle %d %s: got %.17g, want %.17g (tolerance %g)",
+						step, index, component.name, component.actual, component.expected, tolerance)
+				}
+			}
 		}
+		copy(legacy.Particles, current.Particles)
 	}
 }
 
