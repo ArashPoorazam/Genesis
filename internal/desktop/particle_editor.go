@@ -2,7 +2,6 @@ package desktop
 
 import (
 	"fmt"
-	"image/color"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -17,7 +16,7 @@ import (
 func (view *Window) buildParticles(x, y, width, height int) {
 	config := view.controller.Simulation.Config
 	listHeight := ((len(config.ParticleTypes) + 1) / 2) * 42
-	content := view.addScrollArea(view.inspectorContainer, x, y, width, height, listHeight+980)
+	content := view.addScrollArea(view.inspectorContainer, x, y, width, height, listHeight+1050)
 	width -= 24
 
 	view.addLabel(content, 0, 0, width, "Particle types", 23, ink)
@@ -27,18 +26,18 @@ func (view *Window) buildParticles(x, y, width, height int) {
 	detailsY := listHeight + 134
 	typeIndex := view.selectedType
 	view.buildTypeIdentity(content, width, detailsY, typeIndex)
-	view.buildPopulationControl(content, width, detailsY, typeIndex)
-	view.buildRadiusControls(content, width, detailsY, typeIndex)
-	view.buildInfluenceDiagram(content, width, detailsY, typeIndex)
-	view.buildRemoveTypeButton(content, width, detailsY, typeIndex)
+	view.buildPopulationControl(content, width, detailsY+176, typeIndex)
+	view.buildRadiusControls(content, width, detailsY+344, typeIndex)
+	view.buildInfluenceDiagram(content, width, detailsY+728, typeIndex)
+	view.buildRemoveTypeButton(content, width, detailsY+858, typeIndex)
 }
 
 func (view *Window) buildTypeList(content *widget.Container, width, listHeight int) {
 	config := view.controller.Simulation.Config
 	for typeIndex, particleType := range config.ParticleTypes {
 		caption := shorten(particleType.Name, 12) + fmt.Sprintf(" · %d", particleType.Population)
-		buttonX, buttonY := (typeIndex%2)*(width/2), 68+(typeIndex/2)*42
-		button := view.addButton(content, buttonX, buttonY, width/2-6, caption, view.selectedType == typeIndex, func() {
+		buttonX, buttonY := (typeIndex%2)*((width+8)/2), 68+(typeIndex/2)*42
+		button := view.addButton(content, buttonX, buttonY, (width-8)/2, caption, view.selectedType == typeIndex, func() {
 			view.selectedType = typeIndex
 			view.requestRebuild()
 		})
@@ -77,7 +76,7 @@ func (view *Window) buildTypeIdentity(content *widget.Container, width, detailsY
 
 	view.addLabel(content, 0, detailsY, width, "TYPE DETAILS", 10, muted)
 	view.addLabel(content, 0, detailsY+27, width, "Name", 13, ink)
-	errLabel := view.addLabel(content, 0, detailsY+114, width, "", 11, danger)
+	errLabel := view.addLabel(content, 0, detailsY+88, width, "", 11, danger)
 	view.addTextInput(content, 0, detailsY+49, width, particleType.Name, func(caption string) error {
 		err := view.editConfig(func(config *simulation.Config) error {
 			config.ParticleTypes[typeIndex].Name = strings.TrimSpace(caption)
@@ -90,46 +89,18 @@ func (view *Window) buildTypeIdentity(content *widget.Container, width, detailsY
 		}
 		return err
 	})
-	view.addLabel(content, 0, detailsY+96, 80, "Color", 13, ink)
-	view.addTextInput(content, 96, detailsY+88, width-96, fmt.Sprintf("#%02X%02X%02X", particleType.Color.R, particleType.Color.G, particleType.Color.B), func(caption string) error {
-		caption = strings.TrimPrefix(strings.TrimSpace(caption), "#")
-		if len(caption) != 6 {
-			errLabel.Label = "Use a six-digit color, e.g. #FF4655"
-			return fmt.Errorf("use a six-digit hex color")
-		}
-		value, err := strconv.ParseUint(caption, 16, 32)
-		if err != nil {
-			errLabel.Label = "Use a six-digit hex color"
-			return err
-		}
-		errLabel.Label = ""
-		return view.editConfig(func(config *simulation.Config) error {
-			config.ParticleTypes[typeIndex].Color = color.NRGBA{uint8(value >> 16), uint8(value >> 8), uint8(value), 255}
-			return nil
-		})
+	view.addButton(content, 0, detailsY+120, width, "Custom color…", false, func() {
+		view.openColorPicker(typeIndex)
 	})
-	palette := []color.NRGBA{{255, 70, 85, 255}, {109, 222, 145, 255}, {93, 153, 255, 255}, {244, 133, 190, 255}, {255, 201, 121, 255}, {181, 161, 242, 255}}
-	for paletteIndex, swatchColor := range palette {
-		button := view.addButton(content, paletteIndex*(width/6), detailsY+144, width/6-6, "", false, func() {
-			view.editConfig(func(config *simulation.Config) error {
-				config.ParticleTypes[typeIndex].Color = swatchColor
-				return nil
-			})
-			view.requestRebuild()
-		})
-		images := buttonImages(false)
-		images.Idle = roundedImage(swatchColor, swatchColor, 8)
-		button.SetImage(images)
-	}
 }
 
 func (view *Window) buildPopulationControl(content *widget.Container, width, detailsY, typeIndex int) {
 	particleType := view.controller.Simulation.Config.ParticleTypes[typeIndex]
 
-	view.addLabel(content, 0, detailsY+198, width, "Population", 14, ink)
-	populationInput := view.addTextInput(content, 0, detailsY+225, 100, strconv.Itoa(particleType.Population), nil)
-	popError := view.addLabel(content, 0, detailsY+266, width, "", 11, danger)
-	view.addButton(content, 110, detailsY+225, width-110, "Update population", true, func() {
+	view.addLabel(content, 0, detailsY, width, "Population", 14, ink)
+	populationInput := view.addTextInput(content, 0, detailsY+28, 100, strconv.Itoa(particleType.Population), nil)
+	popError := view.addLabel(content, 0, detailsY+70, width, "", 11, danger)
+	view.addButton(content, 110, detailsY+28, width-110, "Update population", true, func() {
 		population, err := strconv.Atoi(populationInput.GetText())
 		if err == nil {
 			err = view.editConfig(func(config *simulation.Config) error {
@@ -146,21 +117,21 @@ func (view *Window) buildPopulationControl(content *widget.Container, width, det
 			view.sound.Queue(soundtrack.Population)
 		}
 	})
-	view.addLiveLabel(content, 0, detailsY+288, width, 11, muted, func() string {
+	view.addLiveLabel(content, 0, detailsY+96, width, 11, muted, func() string {
 		count := 0
 		for _, particle := range view.controller.Simulation.Particles {
 			if particle.TypeIndex == typeIndex {
 				count++
 			}
 		}
-		return fmt.Sprintf("%d placed · 5,000 total limit · new particles use spawn settings", count)
+		return fmt.Sprintf("%d placed · 5,000 total limit. New particles use spawn settings.", count)
 	})
 }
 
 func (view *Window) buildRadiusControls(content *widget.Container, width, detailsY, typeIndex int) {
 	particleType := view.controller.Simulation.Config.ParticleTypes[typeIndex]
 
-	view.addNumberControl(content, 0, detailsY+330, width, numericSetting{
+	view.addNumberControl(content, 0, detailsY, width, numericSetting{
 		Title:   "Particle radius",
 		Hint:    "Visual size and spawn clearance; not inertial mass.",
 		Value:   particleType.ParticleRadius,
@@ -172,7 +143,7 @@ func (view *Window) buildRadiusControls(content *widget.Container, width, detail
 			setParticleRadius(config, typeIndex, physicalRadius, value)
 		},
 	})
-	view.addNumberControl(content, 0, detailsY+442, width, numericSetting{
+	view.addNumberControl(content, 0, detailsY+128, width, numericSetting{
 		Title:   "Inner influence radius",
 		Hint:    "Linked to outer radius; always larger than the particle.",
 		Value:   particleType.InnerRadius,
@@ -184,7 +155,7 @@ func (view *Window) buildRadiusControls(content *widget.Container, width, detail
 			setParticleRadius(config, typeIndex, innerInfluenceRadius, value)
 		},
 	})
-	view.addNumberControl(content, 0, detailsY+554, width, numericSetting{
+	view.addNumberControl(content, 0, detailsY+256, width, numericSetting{
 		Title:   "Outer influence radius",
 		Hint:    "Linked to inner radius; changes keep both zones valid.",
 		Value:   particleType.OuterRadius,
@@ -202,7 +173,7 @@ func (view *Window) buildInfluenceDiagram(content *widget.Container, width, deta
 	diagram := ebiten.NewImage(width, 106)
 	view.transientImages = append(view.transientImages, diagram)
 	graphic := widget.NewGraphic(widget.GraphicOpts.Image(diagram))
-	placeWidget(content, graphic, rectangle(0, detailsY+669, width, 106))
+	placeWidget(content, graphic, rectangle(0, detailsY, width, 106))
 	var prior simulation.ParticleType
 	view.refreshBindings = append(view.refreshBindings, func() {
 		particleType := view.controller.Simulation.Config.ParticleTypes[typeIndex]
@@ -221,7 +192,7 @@ func (view *Window) buildInfluenceDiagram(content *widget.Container, width, deta
 }
 
 func (view *Window) buildRemoveTypeButton(content *widget.Container, width, detailsY, typeIndex int) {
-	remove := view.addButton(content, 0, detailsY+800, width, "Remove this type…", false, func() {
+	remove := view.addButton(content, 0, detailsY, width, "Remove this type…", false, func() {
 		count := 0
 		for _, particle := range view.controller.Simulation.Particles {
 			if particle.TypeIndex == typeIndex {

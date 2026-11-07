@@ -180,14 +180,14 @@ func (driver *workflowDriver) workflowSteps(exchangeDirectory string) []func() e
 			return driver.submit(0, "Violet")
 		},
 		func() error {
-			view.textFields[2].SetText("12")
+			view.textFields[1].SetText("12")
 			return driver.click("Update population")
 		},
 		func() error {
 			if len(view.controller.Simulation.Particles) != len(originalParticles)+12 {
 				return fmt.Errorf("population update failed")
 			}
-			view.textFields[2].SetText("6000")
+			view.textFields[1].SetText("6000")
 			return driver.click("Update population")
 		},
 		func() error {
